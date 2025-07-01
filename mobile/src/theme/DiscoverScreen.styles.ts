@@ -136,6 +136,17 @@ banner: {
     marginLeft: 4,
     color: '#fff',
     },
+      debugUrl: {
+    fontSize: 10,
+    color: '#aaa',
+    marginTop: 4,
+  },
+
+  // 底部导航高亮文字
+  bottomLabelActive: {
+    color: '#d81e06',
+    fontWeight: '600',
+  },
 
 });
 

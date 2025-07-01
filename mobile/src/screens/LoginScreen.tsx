@@ -1,19 +1,35 @@
+/* src/screens/LoginScreen.tsx
+   --------------------------------------------- */
+
 import React, { useState } from 'react';
 import {
-  View, Text, TextInput, TouchableOpacity,
-  StyleSheet, Alert
+  View,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  StyleSheet,
+  Alert,
 } from 'react-native';
+import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useNavigation } from '@react-navigation/native';
 import { Colors } from '../theme/colors';
 import { useUserProfile } from '../contexts/UserProfileContext';
+import { RootStackParamList } from '../App';          // ← 根据实际路径调整
 
-export default function LoginScreen({ onLoginSuccess, error }: any) {
+/* ----------- Props 类型：标准导航 + 自定义字段 ----------- */
+type Props = NativeStackScreenProps<RootStackParamList, 'Login'> & {
+  onLoginSuccess?: (username: string) => void;
+  error?: string;
+};
+
+const LoginScreen: React.FC<Props> = ({ onLoginSuccess, error }) => {
   const navigation = useNavigation<any>();
   const { setProfileData } = useUserProfile();
 
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
 
+  /* -------------------- 登录处理 -------------------- */
   const handleLogin = async () => {
     try {
       const response = await fetch('http://10.0.2.2:8080/api/auth/login', {
@@ -25,23 +41,24 @@ export default function LoginScreen({ onLoginSuccess, error }: any) {
       const result = await response.json();
 
       if (response.ok) {
-        // 保存 uuid / email / nickname 到全局上下文
-        setProfileData(prev => ({
+        // 把 uuid / email 等写入全局上下文
+        setProfileData((prev) => ({
           ...prev,
           uuid: result.uuid,
           email: result.email,
         }));
 
-        onLoginSuccess?.(username);
-        navigation.replace('Step1Screen'); // 登录成功跳转注册流程首页
+        onLoginSuccess?.(username);         // 通知 App 登录成功
+        navigation.replace('Step1Screen');  // 跳转注册流程首页
       } else {
         Alert.alert('登录失败', result.message || '用户名或密码错误');
       }
-    } catch (err) {
+    } catch {
       Alert.alert('网络错误', '无法连接到服务器');
     }
   };
 
+  /* -------------------- UI -------------------- */
   return (
     <View style={styles.container}>
       <View style={styles.form}>
@@ -64,6 +81,7 @@ export default function LoginScreen({ onLoginSuccess, error }: any) {
           onChangeText={setPassword}
           secureTextEntry
         />
+
         <TouchableOpacity style={styles.button} onPress={handleLogin}>
           <Text style={styles.buttonText}>登录</Text>
         </TouchableOpacity>
@@ -74,8 +92,13 @@ export default function LoginScreen({ onLoginSuccess, error }: any) {
       </View>
     </View>
   );
-}
+};
 
+export default LoginScreen;
+
+/* ---------------------------------------------
+   样式定义
+   --------------------------------------------- */
 const styles = StyleSheet.create({
   container: {
     flex: 1,

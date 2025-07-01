@@ -1,7 +1,8 @@
+// App.tsx
 import React, { useState } from 'react';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
-import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { UserProfileProvider } from './contexts/UserProfileContext';
 
 // Import all screen components
@@ -21,16 +22,18 @@ import Step3Screen from './screens/Info/Step3Screen';
 import Step4Screen from './screens/Info/Step4Screen';
 import Step5Screen from './screens/Info/Step5Screen';
 import Step6Screen from './screens/Info/Step6Screen';
+import SearchScreen from './screens/Post/SearchScreen'; 
 
 // Define navigation types
-type RootStackParamList = {
-  Login: undefined;
+export type RootStackParamList = {
   Register: undefined;
+  Login: undefined;
   Dashboard: undefined;
   SeatOverview: undefined;
   SeatPage: undefined;
   Discover: undefined;
-  PostDetail: undefined;
+  Search: undefined;            // <-- New route
+  PostDetail: { post: { uuid: string } };
   PostCreation: undefined;
   CertifiedPromotions: undefined;
   Step1Screen: undefined;
@@ -42,12 +45,10 @@ type RootStackParamList = {
   PlayerProfile: undefined;
 };
 
-// Add type definition for login props
 interface LoginProps {
   onLoginSuccess: (username: string) => void;
 }
 
-// Add type definition for dashboard props
 interface DashboardProps {
   onLogout: () => void;
 }
@@ -63,26 +64,40 @@ export default function App() {
     <GestureHandlerRootView style={{ flex: 1 }}>
       <UserProfileProvider>
         <NavigationContainer>
-          <Stack.Navigator 
-            initialRouteName={user ? "Dashboard" : "Register"}
+          <Stack.Navigator
+            initialRouteName={user ? 'Dashboard' : 'Register'}
             screenOptions={{ headerShown: false }}
           >
             <Stack.Screen name="Register" component={RegisterScreen} />
+
             <Stack.Screen name="Login">
-              {(props) => <LoginScreen {...props} onLoginSuccess={handleLoginSuccess} />}
-            </Stack.Screen>
-            <Stack.Screen name="Dashboard">
               {(props) => (
-                user ? <DashboardScreen {...props} onLogout={handleLogout} /> : 
                 <LoginScreen {...props} onLoginSuccess={handleLoginSuccess} />
               )}
             </Stack.Screen>
+
+            <Stack.Screen name="Dashboard">
+              {(props) =>
+                user ? (
+                  <DashboardScreen {...props} onLogout={handleLogout} />
+                ) : (
+                  <LoginScreen {...props} onLoginSuccess={handleLoginSuccess} />
+                )
+              }
+            </Stack.Screen>
+
             <Stack.Screen name="SeatOverview" component={SeatOverviewScreen} />
             <Stack.Screen name="SeatPage" component={SeatPageScreen} />
+
             <Stack.Screen name="Discover" component={DiscoverScreen} />
+            <Stack.Screen name="Search" component={SearchScreen} />   
+
             <Stack.Screen name="PostDetail" component={PostDetailScreen} />
             <Stack.Screen name="PostCreation" component={PostCreationScreen} />
-            <Stack.Screen name="CertifiedPromotions" component={CertifiedPromotionsScreen} />
+            <Stack.Screen
+              name="CertifiedPromotions"
+              component={CertifiedPromotionsScreen}
+            />
             <Stack.Screen name="Step1Screen" component={Step1Screen} />
             <Stack.Screen name="Step2Screen" component={Step2Screen} />
             <Stack.Screen name="Step3Screen" component={Step3Screen} />

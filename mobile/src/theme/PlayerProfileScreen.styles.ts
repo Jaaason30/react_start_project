@@ -69,4 +69,10 @@ export const styles = StyleSheet.create({
   bottomItem: { flex: 1, justifyContent: 'center', alignItems: 'center', paddingVertical: 4, gap: 2 },
   bottomLabel: { fontSize: 12, color: '#222' },
   bottomLabelActive: { color: '#d81e06' },
+  loadingContainer: {
+  flex: 1,
+  justifyContent: 'center',
+  alignItems: 'center',
+  padding: 16,
+},
 });

@@ -14,16 +14,15 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import Ionicons from 'react-native-vector-icons/Ionicons';
+import FastImage from 'react-native-fast-image';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { styles } from '../../theme/DiscoverScreen.styles';
 import LinearGradient from 'react-native-linear-gradient';
 
-// ✅ 添加 BASE_URL
+// 🔗 BASE URL
 const FULL_BASE_URL = 'http://10.0.2.2:8080';
 
-
-// 导航栈参数类型
 type RootStackParamList = {
   Login: undefined;
   Register: undefined;
@@ -31,25 +30,14 @@ type RootStackParamList = {
   SeatOverview: undefined;
   SeatPage: { seatId: string };
   Discover: undefined;
+  Search: undefined;               // <-- make sure this is in your RootStackParamList
   PlayerProfile: { userId?: string } | undefined;
   PostCreation: undefined;
   CertifiedPromotions: undefined;
-  PostDetail: {
-    post: {
-      uuid: string;
-      author: string;
-      authorAvatar: string;
-      title: string;
-      content: string;
-      images: string[];
-      likes: number;
-      collects: number;
-      comments: number;
-    };
-  };
+  PostDetail: { post: any };
 };
 
-type DiscoverScreenNav = NativeStackNavigationProp<RootStackParamList>;
+type DiscoverNav = NativeStackNavigationProp<RootStackParamList>;
 
 const { width } = Dimensions.get('window');
 const STATUS_BAR = Platform.OS === 'android' ? StatusBar.currentHeight ?? 0 : 0;
@@ -61,109 +49,80 @@ const mockBanners: Banner[] = [
   { id: 'b3', uri: 'https://picsum.photos/802/300' },
 ];
 
-const TOP_TABS = ['关注', '推荐', '营销'];
+const TOP_TABS = ['关注', '推荐', '营销'] as const;
 const BOTTOM_TABS = [
-  { key: 'match', label: '匹配', icon: 'heart-outline', screen: 'Dashboard' },
-  { key: 'chat', label: '聊天', icon: 'chatbubbles-outline', screen: 'SeatOverview' },
-  { key: 'square', label: '广场', icon: 'apps-outline', screen: 'Discover' },
-  { key: 'me', label: '我的', icon: 'person-outline', screen: 'PlayerProfile' },
+  { key: 'match',  label: '匹配', icon: 'heart-outline',       screen: 'Dashboard' },
+  { key: 'chat',   label: '聊天', icon: 'chatbubbles-outline', screen: 'SeatOverview' },
+  { key: 'square', label: '广场', icon: 'apps-outline',        screen: 'Discover' },
+  { key: 'me',     label: '我的', icon: 'person-outline',      screen: 'PlayerProfile' },
 ] as const;
 
-/* ======================== COMPONENT ======================== */
-const DiscoverScreen: React.FC = () => {
-  const navigation = useNavigation<DiscoverScreenNav>();
-  const [activeTopTab, setActiveTopTab] = useState<'关注' | '推荐' | '营销'>('推荐');
-  const [activeBottom, setActiveBottom] = useState<'match' | 'chat' | 'square' | 'me'>('square');
+export default function DiscoverScreen() {
+  const navigation = useNavigation<DiscoverNav>();
+  const [activeTopTab, setActiveTopTab] = useState<typeof TOP_TABS[number]>('推荐');
+  const [activeBottom, setActiveBottom] = useState<typeof BOTTOM_TABS[number]['key']>('square');
   const [bannerIndex, setBannerIndex] = useState(0);
   const [posts, setPosts] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // 拉取后端帖子数据
   useEffect(() => {
-    const fetchPosts = async () => {
+    (async () => {
       try {
-        const res = await fetch(`${FULL_BASE_URL}/api/posts/feed?page=0&size=20`);
+        const res  = await fetch(`${FULL_BASE_URL}/api/posts/feed?page=0&size=20`);
         const data = await res.json();
-        console.log('[✅ Fetch Posts]', JSON.stringify(data, null, 2));
         setPosts(data.content ?? []);
-      } catch (error) {
-        console.error('❌ Fetch posts error:', error);
+      } catch (err) {
+        console.error('❌ Fetch posts error:', err);
       } finally {
         setLoading(false);
       }
-    };
-    fetchPosts();
+    })();
   }, []);
 
   const renderPost = ({ item }: { item: any }) => {
-    const coverUrl = item.coverUrl ? FULL_BASE_URL + item.coverUrl : 'https://via.placeholder.com/400x600';
-    console.log('[🔍 Post Item]', item);
-    console.log('[🔍 封面 URL]', coverUrl);
+    const coverUrl = item.coverUrl
+      ? FULL_BASE_URL + item.coverUrl
+      : 'https://via.placeholder.com/400x600';
 
     return (
       <TouchableOpacity
         style={styles.card}
-        onPress={() =>
-          navigation.navigate('PostDetail', {
-            post: {
-              uuid: item.uuid, 
-              author: item.author?.nickname ?? '未知用户',
-              authorAvatar: item.author?.profilePictureUrl
-                ? FULL_BASE_URL + item.author.profilePictureUrl
-                : 'https://via.placeholder.com/200x200.png?text=No+Avatar',
-              title: item.title,
-              content: item.content ?? '暂无内容',
-              images: (item.imageUrls ?? []).map((url: string) => FULL_BASE_URL + url),
-              likes: item.likeCount ?? 0,
-              collects: item.collectCount ?? 0,
-              comments: item.commentCount ?? 0,
-            },
-          })
-        }
+        onPress={() => navigation.navigate('PostDetail', { post: { ...item, coverUrl } })}
+        activeOpacity={0.8}
       >
-        <Image
+        <FastImage
           source={{ uri: coverUrl }}
           style={styles.cardImage}
-          onError={(e) => console.log('❌ Image load error for URL:', coverUrl, e.nativeEvent)}
-          onLoad={() => console.log('✅ Image loaded:', coverUrl)}
+          resizeMode={FastImage.resizeMode.cover}
         />
-        <Text style={styles.cardTitle} numberOfLines={2}>{item.title}</Text>
+        <Text style={styles.cardTitle} numberOfLines={2}>
+          {item.title ?? '（无标题）'}
+        </Text>
         <View style={styles.cardFooter}>
-          <Text style={styles.author}>{item.author?.nickname ?? '未知用户'}</Text>
+          <Text style={styles.author}>{item.author?.nickname ?? '匿名'}</Text>
           <View style={styles.likesRow}>
             <Ionicons name="heart-outline" size={14} color="#888" />
             <Text style={styles.likesText}>{item.likeCount ?? 0}</Text>
           </View>
         </View>
-        {/* 可视化显示封面 URL */}
-        <Text style={{ fontSize: 10, color: '#aaa' }} numberOfLines={1}>
+        <Text style={styles.debugUrl} numberOfLines={1}>
           {coverUrl}
         </Text>
       </TouchableOpacity>
     );
   };
 
-  const handleBottomNavigation = (
-    key: typeof activeBottom,
-    screen: keyof RootStackParamList,
-  ) => {
-    setActiveBottom(key);
-    if (screen !== 'Discover') {
-      navigation.navigate(screen as any);
-    }
-  };
-
   return (
     <View style={styles.container}>
       <StatusBar barStyle="dark-content" />
 
-      {/* 顶部标签栏与按钮 */}
+      {/* 顶部 Tab + 按钮 */}
       <View style={styles.topBar}>
         <View style={styles.topTabs}>
           {TOP_TABS.map(tab => (
             <TouchableOpacity
               key={tab}
-              onPress={() => setActiveTopTab(tab as any)}
+              onPress={() => setActiveTopTab(tab)}
               style={styles.tabTouch}
             >
               <Text
@@ -192,7 +151,15 @@ const DiscoverScreen: React.FC = () => {
               <Text style={styles.verifyText}>认证营销 👑</Text>
             </LinearGradient>
           </TouchableOpacity>
-          <Ionicons name="search-outline" size={24} style={styles.iconBtn} />
+
+          {/* <-- Search button now navigates to SearchScreen */}
+          <Ionicons
+            name="search-outline"
+            size={24}
+            style={styles.iconBtn}
+            onPress={() => navigation.navigate('Search')}
+          />
+
           <Ionicons
             name="add-outline"
             size={28}
@@ -204,14 +171,22 @@ const DiscoverScreen: React.FC = () => {
 
       {/* 帖子列表 */}
       {loading ? (
-        <ActivityIndicator size="large" color="#d81e06" style={{ marginTop: 50 }} />
+        <ActivityIndicator
+          size="large"
+          color="#d81e06"
+          style={{ marginTop: 50 }}
+        />
       ) : (
         <FlatList
           data={posts}
-          keyExtractor={(item) => item.uuid}
+          keyExtractor={item => item.uuid}
           renderItem={renderPost}
           numColumns={2}
           showsVerticalScrollIndicator={false}
+          removeClippedSubviews
+          initialNumToRender={6}
+          maxToRenderPerBatch={6}
+          windowSize={9}
           ListHeaderComponent={
             <View style={styles.bannerBox}>
               <ScrollView
@@ -227,7 +202,7 @@ const DiscoverScreen: React.FC = () => {
                 }}
                 scrollEventThrottle={16}
               >
-                {mockBanners.map((b) => (
+                {mockBanners.map(b => (
                   <Image
                     key={b.id}
                     source={{ uri: b.uri }}
@@ -235,11 +210,16 @@ const DiscoverScreen: React.FC = () => {
                     resizeMode="cover"
                   />
                 ))}
-                
               </ScrollView>
               <View style={styles.dotsWrap}>
                 {mockBanners.map((_, i) => (
-                  <View key={i} style={[styles.dot, bannerIndex === i && styles.dotActive]} />
+                  <View
+                    key={i}
+                    style={[
+                      styles.dot,
+                      bannerIndex === i && styles.dotActive,
+                    ]}
+                  />
                 ))}
               </View>
             </View>
@@ -248,12 +228,15 @@ const DiscoverScreen: React.FC = () => {
         />
       )}
 
-      {/* 底部导航栏 */}
+      {/* 底部导航 */}
       <View style={styles.bottomBar}>
         {BOTTOM_TABS.map(t => (
           <TouchableOpacity
             key={t.key}
-            onPress={() => handleBottomNavigation(t.key, t.screen)}
+            onPress={() => {
+              setActiveBottom(t.key);
+              if (t.screen !== 'Discover') navigation.navigate(t.screen as any);
+            }}
             style={styles.bottomItem}
           >
             <Ionicons
@@ -264,7 +247,7 @@ const DiscoverScreen: React.FC = () => {
             <Text
               style={[
                 styles.bottomLabel,
-                activeBottom === t.key && { color: '#d81e06', fontWeight: '600' },
+                activeBottom === t.key && styles.bottomLabelActive,
               ]}
             >
               {t.label}
@@ -274,6 +257,4 @@ const DiscoverScreen: React.FC = () => {
       </View>
     </View>
   );
-};
-
-export default DiscoverScreen;
+}

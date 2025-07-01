@@ -66,6 +66,7 @@ const PostCreationScreen: React.FC = () => {
       });
 
       if (res.ok) {
+        console.log(formData);
         Alert.alert('发布成功');
         nav.goBack();
       } else {

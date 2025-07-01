@@ -2,12 +2,12 @@ import React, { useEffect, useState } from 'react';
 import {
   View,
   Text,
-  Image,
-  ScrollView,
   TouchableOpacity,
   SafeAreaView,
+  FlatList,
 } from 'react-native';
 import Ionicons from 'react-native-vector-icons/Ionicons';
+import FastImage from 'react-native-fast-image';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { styles } from '../../theme/PlayerProfileScreen.styles';
@@ -30,35 +30,41 @@ export default function PlayerProfileScreen() {
   const [userData, setUserData] = useState<any>(null);
 
   useEffect(() => {
-const fetchProfile = async () => {
-  try {
-    const response = await fetch(
-      `${FULL_BASE_URL}/api/user/profile?userUuid=${profileData?.uuid}`
-    );
-    if (!response.ok) {
-      throw new Error(`请求失败：${response.status}`);
-    }
+    const fetchProfile = async () => {
+      if (!profileData?.uuid) {
+        console.warn('[FetchProfile] No UUID available, skipping fetch.');
+        return;
+      }
 
-    const data = await response.json();
-    if (!data) throw new Error("后端返回空");
+      const fullUrl = `${FULL_BASE_URL}/api/user/profile?userUuid=${profileData.uuid}`;
+      console.log('[FetchProfile] Fetching profile for UUID:', profileData.uuid);
+      console.log('[FetchProfile] URL:', fullUrl);
 
-    console.log('[✅ UserDto]', data);
-    setUserData(data);
-  } catch (err) {
-    console.error('❌ 获取用户资料失败:', err);
-    setUserData(null); // 确保不会保留旧的残缺数据
-  }
-};
+      try {
+        const response = await fetch(fullUrl);
+        console.log('[FetchProfile] Response status:', response.status);
 
+        if (!response.ok) {
+          throw new Error(`Request failed with status ${response.status}`);
+        }
 
-    if (profileData?.uuid) {
-      fetchProfile();
-    }
+        const data = await response.json();
+        console.log('[FetchProfile] Received data:', data);
+        if (!data) throw new Error('Backend returned empty data');
+
+        setUserData(data);
+      } catch (err) {
+        console.error('[FetchProfile] Failed to load user profile:', err);
+        setUserData(null);
+      }
+    };
+
+    fetchProfile();
   }, [profileData?.uuid]);
 
   return (
     <SafeAreaView style={styles.container}>
-      {/* 顶部栏 */}
+      {/* Top Bar */}
       <View style={styles.topBar}>
         <TouchableOpacity onPress={() => navigation.goBack()}>
           <Ionicons name="chevron-back" size={24} color="#fff" />
@@ -68,87 +74,115 @@ const fetchProfile = async () => {
         </TouchableOpacity>
       </View>
 
-      {/* 玩家信息 */}
-      {userData && (
+      {userData ? (
         <View style={styles.profileHeader}>
-          <Image
+          <FastImage
             source={{
               uri: userData.profilePictureUrl
                 ? FULL_BASE_URL + userData.profilePictureUrl
                 : 'https://via.placeholder.com/200x200.png?text=No+Avatar',
             }}
             style={styles.avatar}
+            onError={() =>
+              console.error('[Avatar] Failed to load avatar:')
+            }
+            resizeMode={FastImage.resizeMode.cover}
           />
-          <Text style={styles.nickname}>{userData.nickname ?? '未命名用户'}</Text>
-          <Text style={styles.userId}>年龄：{userData.age ?? '未填写'} 岁</Text>
+          <Text style={styles.nickname}>
+            {userData.nickname ?? 'Unnamed User'}
+          </Text>
+          <Text style={styles.userId}>Age: {userData.age ?? 'N/A'} yrs</Text>
 
           {userData.city?.name && (
-            <Text style={styles.userId}>来自 {userData.city.name}</Text>
+            <Text style={styles.userId}>From: {userData.city.name}</Text>
           )}
           {userData.gender?.text && (
-            <Text style={styles.userId}>我是：{userData.gender.text}</Text>
+            <Text style={styles.userId}>Gender: {userData.gender.text}</Text>
           )}
 
-          {userData.genderPreferences?.length > 0 && (
-            <Text style={styles.userId}>
-              想认识：
-              {userData.genderPreferences.map((g: any) => g.text).join(' / ')}
-            </Text>
-          )}
+          {Array.isArray(userData.genderPreferences) &&
+            userData.genderPreferences.length > 0 && (
+              <Text style={styles.userId}>
+                Seeks:{' '}
+                {userData.genderPreferences.map((g: any) => g.text).join(' / ')}
+              </Text>
+            )}
 
           <Text style={styles.bio}>
-            {userData.bio ?? '这个人很神秘，什么也没写'}
+            {userData.bio ?? 'No bio available.'}
           </Text>
 
-          {userData.interests?.length > 0 && (
-            <View style={styles.tags}>
-              {userData.interests.map((int: any) => (
-                <Text key={int.id} style={styles.tag}>
-                  #{int.name}
-                </Text>
-              ))}
-            </View>
-          )}
+          {Array.isArray(userData.interests) &&
+            userData.interests.length > 0 && (
+              <View style={styles.tags}>
+                {userData.interests.map((int: any) => (
+                  <Text key={int.id} style={styles.tag}>
+                    #{int.name}
+                  </Text>
+                ))}
+              </View>
+            )}
 
-          {userData.albumUrls?.length > 0 && (
-            <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-              {userData.albumUrls.map((url: string) => (
-                <Image
-                  key={url}
-                  source={{ uri: FULL_BASE_URL + url }}
-                  style={styles.photoItem}
-                />
-              ))}
-            </ScrollView>
-          )}
+          {Array.isArray(userData.albumUrls) &&
+            userData.albumUrls.length > 0 && (
+              <FlatList
+                data={userData.albumUrls}
+                keyExtractor={(item, index) => `${item}-${index}`}
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                renderItem={({ item, index }) => {
+                  const imageUri = FULL_BASE_URL + item;
+                  console.log('[Album] Rendering image:', imageUri);
+
+                  return (
+                    <FastImage
+                      key={`${item}-${index}`}
+                      source={{ uri: imageUri }}
+                      style={styles.photoItem}
+                      onError={() =>
+                        console.error(
+                          '[Album] Failed to load image:',
+                          imageUri
+                        )
+                      }
+                      resizeMode={FastImage.resizeMode.cover}
+                    />
+                  );
+                }}
+              />
+            )}
 
           <Text style={styles.userId}>
-            收到赞数：{userData.totalLikesReceived}
+            Likes Received: {userData.totalLikesReceived}
           </Text>
 
-          {userData.preferredVenues?.length > 0 && (
-            <Text style={styles.userId}>
-              常去：
-              {userData.preferredVenues.map((v: any) => v.name).join(' / ')}
-            </Text>
-          )}
+          {Array.isArray(userData.preferredVenues) &&
+            userData.preferredVenues.length > 0 && (
+              <Text style={styles.userId}>
+                Venues:{' '}
+                {userData.preferredVenues.map((v: any) => v.name).join(' / ')}
+              </Text>
+            )}
 
           {userData.dates?.createdAt && (
             <Text style={styles.userId}>
-              加入时间：
+              Joined:{' '}
               {new Date(userData.dates.createdAt).toLocaleDateString()}
             </Text>
           )}
 
           {userData.dates?.lastActiveAt && (
             <Text style={styles.userId}>
-              最近活跃：
+              Last Active:{' '}
               {new Date(userData.dates.lastActiveAt).toLocaleDateString()}
             </Text>
           )}
+        </View>
+      ) : (
+        <View style={styles.loadingContainer}>
+          <Text>Loading user profile...</Text>
         </View>
       )}
     </SafeAreaView>
   );
 }
-

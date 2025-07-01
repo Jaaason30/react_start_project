@@ -1,12 +1,27 @@
-/* src/screens/DashboardScreen.tsx */
+/* -----------------------------------------
+   DashboardScreen
+   ----------------------------------------- */
+
 import React, { useContext } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, FlatList, Image } from 'react-native';
-import { useNavigation } from '@react-navigation/native';
+import {
+  View,
+  Text,
+  TouchableOpacity,
+  StyleSheet,
+  FlatList,
+  Image,
+} from 'react-native';
+import { NativeStackScreenProps } from '@react-navigation/native-stack';
+import { RootStackParamList } from '../App';      // ← ⇽ 根据你的实际相对路径调整
 import { GroupChatContext } from '../contexts/GroupChatContext';
 import { Colors } from '../theme/colors';
 
-export default function DashboardScreen() {
-  const navigation = useNavigation<any>();
+/* ───────── 关键：声明额外 prop ───────── */
+type Props = NativeStackScreenProps<RootStackParamList, 'Dashboard'> & {
+  onLogout: () => void;
+};
+
+const DashboardScreen: React.FC<Props> = ({ navigation, onLogout }) => {
   const { groupChats } = useContext(GroupChatContext);
 
   /* ────── mock 数据保持不变 ────── */
@@ -17,8 +32,20 @@ export default function DashboardScreen() {
   ];
 
   const players = [
-    { name: '林小姐', age: 25, sessions: 8, tag: '高活跃', avatar: require('../assets/avatar1.jpg') },
-    { name: '王小姐', age: 23, sessions: 5, tag: '新客', avatar: require('../assets/avatar2.jpg') },
+    {
+      name: '林小姐',
+      age: 25,
+      sessions: 8,
+      tag: '高活跃',
+      avatar: require('../assets/avatar1.jpg'),
+    },
+    {
+      name: '王小姐',
+      age: 23,
+      sessions: 5,
+      tag: '新客',
+      avatar: require('../assets/avatar2.jpg'),
+    },
   ];
 
   const ranking = [
@@ -28,7 +55,7 @@ export default function DashboardScreen() {
 
   return (
     <View style={styles.container}>
-      {/* 顶部功能按钮 */}
+      {/* ───────── 顶部功能按钮 ───────── */}
       <View style={styles.topButtons}>
         <TouchableOpacity
           style={styles.outlineButton}
@@ -45,16 +72,19 @@ export default function DashboardScreen() {
           <Text style={styles.outlineButtonText}>查看广场</Text>
         </TouchableOpacity>
 
+        {/* 退出登录：先调 onLogout 清空全局状态，再跳回 Login */}
         <TouchableOpacity
           style={styles.outlineDangerButton}
-          onPress={() => navigation.replace('Login')}
+          onPress={() => {
+            onLogout();
+            navigation.replace('Login');
+          }}
         >
           <Text style={styles.outlineButtonText}>退出登录</Text>
         </TouchableOpacity>
       </View>
 
-      {/* ↓↓↓ 下面的数据看板 / 玩家池 / 排行 / 群聊列表保持不变 ↓↓↓ */}
-
+      {/* ───────── 数据看板 ───────── */}
       <Text style={styles.sectionTitle}>数据看板</Text>
       <View style={styles.statsRow}>
         {stats.map((s) => (
@@ -66,6 +96,7 @@ export default function DashboardScreen() {
         ))}
       </View>
 
+      {/* ───────── 我的玩家池 ───────── */}
       <Text style={styles.sectionTitle}>我的玩家池</Text>
       <FlatList
         data={players}
@@ -75,26 +106,34 @@ export default function DashboardScreen() {
           <View style={styles.playerCard}>
             <Image source={item.avatar} style={styles.avatar} />
             <Text style={styles.playerName}>{item.name}</Text>
-            <Text style={styles.playerDetail}>{item.age}岁 · {item.sessions}局</Text>
-            <View style={styles.badge}><Text style={styles.badgeText}>{item.tag}</Text></View>
+            <Text style={styles.playerDetail}>
+              {item.age}岁 · {item.sessions}局
+            </Text>
+            <View style={styles.badge}>
+              <Text style={styles.badgeText}>{item.tag}</Text>
+            </View>
           </View>
         )}
         showsHorizontalScrollIndicator={false}
       />
 
+      {/* ───────── 营销排行榜 ───────── */}
       <Text style={styles.sectionTitle}>营销排行榜</Text>
-      {ranking.map(r => (
+      {ranking.map((r) => (
         <View key={r.rank} style={styles.rankItem}>
-          <Text style={styles.rankText}>{r.name} 转化 {r.converted} 位</Text>
+          <Text style={styles.rankText}>
+            {r.name} 转化 {r.converted} 位
+          </Text>
           <Text style={styles.rankBadge}>{r.rank}</Text>
         </View>
       ))}
 
+      {/* ───────── 群聊列表 ───────── */}
       <Text style={styles.sectionTitle}>群聊列表</Text>
       {groupChats.length === 0 ? (
         <Text style={styles.emptyText}>暂无群聊</Text>
       ) : (
-        groupChats.map(chat => (
+        groupChats.map((chat) => (
           <Text key={chat.id} style={styles.chatItem}>
             {chat.club}:{chat.members.join(',')}
           </Text>
@@ -102,9 +141,13 @@ export default function DashboardScreen() {
       )}
     </View>
   );
-}
+};
 
-/* ────── 样式保持不变 ────── */
+export default DashboardScreen;
+
+/* -----------------------------------------
+   样式保持不变
+   ----------------------------------------- */
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: Colors.bg, padding: 16 },
   topButtons: {

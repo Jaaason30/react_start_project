@@ -2,22 +2,24 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import {
-  View, Text, Image, FlatList, TouchableOpacity, Dimensions, StatusBar,
+  View, Text, FlatList, TouchableOpacity, Dimensions, StatusBar,Image,
   TextInput, Modal, KeyboardAvoidingView, ActivityIndicator, RefreshControl, Platform,
 } from 'react-native';
 import Ionicons from 'react-native-vector-icons/Ionicons';
+import FastImage from 'react-native-fast-image';
 import { useRoute, useNavigation } from '@react-navigation/native';
 import type { RouteProp } from '@react-navigation/native';
 import { styles } from '../../theme/PostDetailScreen.styles';
 import { useUserProfile } from '../../contexts/UserProfileContext';
 
-const FULL_BASE_URL = Platform.OS === 'android' ? 'http://10.0.2.2:8080' : 'http://localhost:8080';
+const FULL_BASE_URL = Platform.OS === 'android'
+  ? 'http://10.0.2.2:8080'
+  : 'http://localhost:8080';
 const { width } = Dimensions.get('window');
 
 type RootStackParamList = {
   PostDetail: { post: { uuid: string } };
 };
-
 type PostDetailRouteProp = RouteProp<RootStackParamList, 'PostDetail'>;
 
 type CommentType = {
@@ -29,7 +31,6 @@ type CommentType = {
   likes: number;
   liked: boolean;
 };
-
 type SortType = '最新' | '最热';
 
 type PostType = {
@@ -57,6 +58,7 @@ const PostDetailScreen = () => {
   const [post, setPost] = useState<PostType | null>(null);
   const [imageDimensions, setImageDimensions] = useState<{ width: number; height: number }[]>([]);
   const [loading, setLoading] = useState(true);
+
   const [comments, setComments] = useState<CommentType[]>([]);
   const [commentText, setCommentText] = useState('');
   const [showCommentModal, setShowCommentModal] = useState(false);
@@ -64,17 +66,22 @@ const PostDetailScreen = () => {
   const [page, setPage] = useState(0);
   const [hasMore, setHasMore] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+
   const [isLiked, setIsLiked] = useState(false);
   const [isCollected, setIsCollected] = useState(false);
 
   const fetchPostDetail = async () => {
     try {
-      const res = await fetch(`${FULL_BASE_URL}/api/posts/${initialPost.uuid}?userUuid=${profileData.uuid}`);
+      const res = await fetch(
+        `${FULL_BASE_URL}/api/posts/${initialPost.uuid}?userUuid=${profileData.uuid}`
+      );
       const data = await res.json();
       console.log('[📥 POST DETAIL]', data);
 
       const processedImages = (data.images ?? []).map((img: { url: string }) =>
-        img.url.startsWith('http') ? img.url : `${FULL_BASE_URL}${img.url}`
+        img.url.startsWith('http')
+          ? img.url
+          : `${FULL_BASE_URL}${img.url}`
       );
 
       const newPost: PostType = {
@@ -105,7 +112,9 @@ const PostDetailScreen = () => {
 
   const fetchComments = async (pageNumber = 0) => {
     try {
-      const res = await fetch(`${FULL_BASE_URL}/api/posts/${initialPost.uuid}/comments?page=${pageNumber}&size=10`);
+      const res = await fetch(
+        `${FULL_BASE_URL}/api/posts/${initialPost.uuid}/comments?page=${pageNumber}&size=10`
+      );
       const data = await res.json();
       const newComments = (data.content ?? []).map((c: any) => ({
         id: c.uuid,
@@ -118,8 +127,10 @@ const PostDetailScreen = () => {
         likes: c.likeCount,
         liked: c.likedByCurrentUser ?? false,
       }));
-      setComments(prev => (pageNumber === 0 ? newComments : [...prev, ...newComments]));
-      setHasMore(data.content ? !data.last : newComments.length > 0);
+      setComments(prev =>
+        pageNumber === 0 ? newComments : [...prev, ...newComments]
+      );
+      setHasMore(!data.last);
     } catch (error) {
       console.error('[❌ Failed to fetch comments]', error);
     }
@@ -132,20 +143,21 @@ const PostDetailScreen = () => {
 
   useEffect(() => {
     if (!post?.images?.length) return;
-    const loadImageDimensions = async () => {
+    (async () => {
       const dims = await Promise.all(
         post.images.map(
-          (url) =>
-            new Promise<{ width: number; height: number }>((resolve) => {
-              Image.getSize(url, (w, h) => resolve({ width: w, height: h }), () =>
-                resolve({ width: 1, height: 1 })
+          url =>
+            new Promise<{ width: number; height: number }>(resolve => {
+              Image.getSize(
+                url,
+                (w, h) => resolve({ width: w, height: h }),
+                () => resolve({ width: 1, height: 1 })
               );
             })
         )
       );
       setImageDimensions(dims);
-    };
-    loadImageDimensions();
+    })();
   }, [post?.images]);
 
   const onRefresh = async () => {
@@ -158,9 +170,9 @@ const PostDetailScreen = () => {
 
   const loadMore = () => {
     if (!hasMore) return;
-    const nextPage = page + 1;
-    setPage(nextPage);
-    fetchComments(nextPage);
+    const next = page + 1;
+    setPage(next);
+    fetchComments(next);
   };
 
   const toggleReaction = async (type: 'LIKE' | 'COLLECT') => {
@@ -169,20 +181,25 @@ const PostDetailScreen = () => {
       return;
     }
     try {
-      const res = await fetch(`${FULL_BASE_URL}/api/posts/${initialPost.uuid}/reactions`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ type, userUuid: profileData.uuid }),
-      });
+      const res = await fetch(
+        `${FULL_BASE_URL}/api/posts/${initialPost.uuid}/reactions`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ type, userUuid: profileData.uuid }),
+        }
+      );
       const data = await res.json();
       console.log('[📥 Reaction Toggled, refreshed post]', data);
 
-      setPost({
+      const updated: PostType = {
         uuid: data.uuid,
         title: data.title,
         content: data.content,
         images: (data.images ?? []).map((img: { url: string }) =>
-          img.url.startsWith('http') ? img.url : `${FULL_BASE_URL}${img.url}`
+          img.url.startsWith('http')
+            ? img.url
+            : `${FULL_BASE_URL}${img.url}`
         ),
         author: data.author?.nickname ?? '未知用户',
         authorAvatar: data.author?.profilePictureUrl
@@ -193,17 +210,17 @@ const PostDetailScreen = () => {
         commentCount: data.commentCount ?? 0,
         likedByMe: data.likedByMe ?? false,
         collectedByMe: data.collectedByMe ?? false,
-      });
-      setIsLiked(data.likedByMe ?? false);
-      setIsCollected(data.collectedByMe ?? false);
+      };
+      setPost(updated);
+      setIsLiked(updated.likedByMe);
+      setIsCollected(updated.collectedByMe);
     } catch (error) {
       console.error(`[❌ Failed to toggle ${type}]`, error);
     }
   };
 
-  const scrollToComments = () => {
+  const scrollToComments = () =>
     scrollViewRef.current?.scrollToOffset({ offset: commentY, animated: true });
-  };
 
   if (loading || !post) {
     return (
@@ -221,16 +238,23 @@ const PostDetailScreen = () => {
         ref={scrollViewRef}
         ListHeaderComponent={
           <>
+            {/* Top bar with author avatar */}
             <View style={styles.topBar}>
               <TouchableOpacity onPress={() => navigation.goBack()}>
                 <Ionicons name="chevron-back" size={24} />
               </TouchableOpacity>
-              <Image source={{ uri: post.authorAvatar }} style={styles.avatar} />
+              <FastImage
+                source={{ uri: post.authorAvatar }}
+                style={styles.avatar}
+                resizeMode={FastImage.resizeMode.cover}
+              />
               <Text style={styles.authorName}>{post.author}</Text>
               <TouchableOpacity style={styles.followBtn}>
                 <Text style={styles.followText}>关注</Text>
               </TouchableOpacity>
             </View>
+
+            {/* Image carousel */}
             <FlatList
               horizontal
               data={post.images}
@@ -238,30 +262,52 @@ const PostDetailScreen = () => {
               pagingEnabled
               showsHorizontalScrollIndicator={false}
               renderItem={({ item, index }) => (
-                <Image
+                <FastImage
                   source={{ uri: item }}
                   style={[
                     styles.image,
-                    { height: (imageDimensions[index]?.height ?? width) / (imageDimensions[index]?.width ?? 1) * width }
+                    {
+                      height:
+                        ((imageDimensions[index]?.height ?? width) /
+                          (imageDimensions[index]?.width ?? 1)) *
+                        width,
+                    },
                   ]}
-                  resizeMode="contain"
+                  resizeMode={FastImage.resizeMode.contain}
                 />
               )}
             />
+
+            {/* Title & content */}
             <View style={styles.contentContainer}>
               <Text style={styles.title}>{post.title}</Text>
               <Text style={styles.body}>{post.content || '暂无内容'}</Text>
             </View>
-            <View onLayout={e => setCommentY(e.nativeEvent.layout.y)} style={styles.commentHeader}>
+
+            {/* Comments header */}
+            <View
+              onLayout={e => setCommentY(e.nativeEvent.layout.y)}
+              style={styles.commentHeader}
+            >
               <Text style={styles.commentHeaderText}>全部评论</Text>
               <View style={styles.commentTabs}>
                 {(['最新', '最热'] as SortType[]).map(type => (
                   <TouchableOpacity
                     key={type}
                     onPress={() => setActiveSort(type)}
-                    style={[styles.commentTab, activeSort === type && styles.activeCommentTab]}
+                    style={[
+                      styles.commentTab,
+                      activeSort === type && styles.activeCommentTab,
+                    ]}
                   >
-                    <Text style={[styles.commentTabText, activeSort === type && styles.activeCommentTabText]}>{type}</Text>
+                    <Text
+                      style={[
+                        styles.commentTabText,
+                        activeSort === type && styles.activeCommentTabText,
+                      ]}
+                    >
+                      {type}
+                    </Text>
                   </TouchableOpacity>
                 ))}
               </View>
@@ -272,13 +318,28 @@ const PostDetailScreen = () => {
         keyExtractor={item => item.id}
         renderItem={({ item }) => (
           <View style={styles.commentItem}>
-            <Image source={{ uri: item.avatar }} style={styles.commentAvatar} />
+            <FastImage
+              source={{ uri: item.avatar }}
+              style={styles.commentAvatar}
+              resizeMode={FastImage.resizeMode.cover}
+            />
             <View style={{ flex: 1 }}>
               <View style={styles.commentTopRow}>
                 <Text style={styles.commentUser}>{item.user}</Text>
                 <TouchableOpacity style={styles.likeButton}>
-                  <Ionicons name={item.liked ? 'heart' : 'heart-outline'} size={16} color={item.liked ? '#f33' : '#888'} />
-                  <Text style={[styles.commentLikes, item.liked && { color: '#f33' }]}>{item.likes}</Text>
+                  <Ionicons
+                    name={item.liked ? 'heart' : 'heart-outline'}
+                    size={16}
+                    color={item.liked ? '#f33' : '#888'}
+                  />
+                  <Text
+                    style={[
+                      styles.commentLikes,
+                      item.liked && { color: '#f33' },
+                    ]}
+                  >
+                    {item.likes}
+                  </Text>
                 </TouchableOpacity>
               </View>
               <Text style={styles.commentContent}>{item.content}</Text>
@@ -288,7 +349,9 @@ const PostDetailScreen = () => {
         )}
         onEndReached={loadMore}
         onEndReachedThreshold={0.5}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+        }
       />
 
       <View style={styles.actions}>
