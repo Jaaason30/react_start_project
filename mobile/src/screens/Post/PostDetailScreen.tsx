@@ -2,8 +2,20 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import {
-  View, Text, FlatList, TouchableOpacity, Dimensions, StatusBar,Image,
-  TextInput, Modal, KeyboardAvoidingView, ActivityIndicator, RefreshControl, Platform,
+  View,
+  Text,
+  FlatList,
+  TouchableOpacity,
+  Dimensions,
+  StatusBar,
+  Image,
+  TextInput,
+  Modal,
+  KeyboardAvoidingView,
+  ActivityIndicator,
+  RefreshControl,
+  Platform,
+  Alert,
 } from 'react-native';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import FastImage from 'react-native-fast-image';
@@ -24,6 +36,7 @@ type PostDetailRouteProp = RouteProp<RootStackParamList, 'PostDetail'>;
 
 type CommentType = {
   id: string;
+  authorUuid: string;
   user: string;
   avatar: string;
   content: string;
@@ -53,7 +66,7 @@ const PostDetailScreen = () => {
   const { post: initialPost } = route.params;
   const { profileData } = useUserProfile();
 
-  const scrollViewRef = useRef<FlatList>(null);
+  const listRef = useRef<FlatList<CommentType>>(null);
   const [commentY, setCommentY] = useState(0);
   const [post, setPost] = useState<PostType | null>(null);
   const [imageDimensions, setImageDimensions] = useState<{ width: number; height: number }[]>([]);
@@ -70,20 +83,16 @@ const PostDetailScreen = () => {
   const [isLiked, setIsLiked] = useState(false);
   const [isCollected, setIsCollected] = useState(false);
 
+  // 获取帖子详情
   const fetchPostDetail = async () => {
     try {
-      const res = await fetch(
-        `${FULL_BASE_URL}/api/posts/${initialPost.uuid}?userUuid=${profileData.uuid}`
-      );
+      const url = `${FULL_BASE_URL}/api/posts/${initialPost.uuid}` +
+        `?userUuid=${profileData.uuid}`;
+      const res = await fetch(url, { credentials: 'include' });
       const data = await res.json();
-      console.log('[📥 POST DETAIL]', data);
-
       const processedImages = (data.images ?? []).map((img: { url: string }) =>
-        img.url.startsWith('http')
-          ? img.url
-          : `${FULL_BASE_URL}${img.url}`
+        img.url.startsWith('http') ? img.url : `${FULL_BASE_URL}${img.url}`
       );
-
       const newPost: PostType = {
         uuid: data.uuid,
         title: data.title,
@@ -99,7 +108,6 @@ const PostDetailScreen = () => {
         likedByMe: data.likedByMe ?? false,
         collectedByMe: data.collectedByMe ?? false,
       };
-
       setPost(newPost);
       setIsLiked(newPost.likedByMe);
       setIsCollected(newPost.collectedByMe);
@@ -110,14 +118,20 @@ const PostDetailScreen = () => {
     }
   };
 
+  // 获取评论列表
   const fetchComments = async (pageNumber = 0) => {
     try {
-      const res = await fetch(
-        `${FULL_BASE_URL}/api/posts/${initialPost.uuid}/comments?page=${pageNumber}&size=10`
-      );
+      const sortParam = activeSort === '最新' ? 'LATEST' : 'HOT';
+      const url =
+        `${FULL_BASE_URL}/api/posts/${initialPost.uuid}/comments` +
+        `?sortType=${sortParam}` +
+        `&userUuid=${profileData.uuid}` +
+        `&page=${pageNumber}&size=10`;
+      const res = await fetch(url, { credentials: 'include' });
       const data = await res.json();
       const newComments = (data.content ?? []).map((c: any) => ({
         id: c.uuid,
+        authorUuid: c.author.uuid,
         user: c.author.nickname,
         avatar: c.author.profilePictureUrl
           ? `${FULL_BASE_URL}${c.author.profilePictureUrl}`
@@ -138,9 +152,14 @@ const PostDetailScreen = () => {
 
   useEffect(() => {
     fetchPostDetail();
-    fetchComments();
   }, [initialPost.uuid]);
 
+  useEffect(() => {
+    fetchComments(0);
+    setPage(0);
+  }, [initialPost.uuid, activeSort]);
+
+  // 计算图片尺寸
   useEffect(() => {
     if (!post?.images?.length) return;
     (async () => {
@@ -151,7 +170,7 @@ const PostDetailScreen = () => {
               Image.getSize(
                 url,
                 (w, h) => resolve({ width: w, height: h }),
-                () => resolve({ width: 1, height: 1 })
+                () => resolve({ width, height: width })
               );
             })
         )
@@ -164,7 +183,6 @@ const PostDetailScreen = () => {
     setRefreshing(true);
     await fetchPostDetail();
     await fetchComments(0);
-    setPage(0);
     setRefreshing(false);
   };
 
@@ -175,52 +193,66 @@ const PostDetailScreen = () => {
     fetchComments(next);
   };
 
+  // 切换帖子点赞/收藏
   const toggleReaction = async (type: 'LIKE' | 'COLLECT') => {
     if (!profileData?.uuid) {
       console.warn('未登录，无法执行操作');
       return;
     }
     try {
-      const res = await fetch(
-        `${FULL_BASE_URL}/api/posts/${initialPost.uuid}/reactions`,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ type, userUuid: profileData.uuid }),
-        }
-      );
+      const url = `${FULL_BASE_URL}/api/posts/${initialPost.uuid}/reactions`;
+      const res = await fetch(url, {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ type, userUuid: profileData.uuid }),
+      });
       const data = await res.json();
-      console.log('[📥 Reaction Toggled, refreshed post]', data);
-
-      const updated: PostType = {
-        uuid: data.uuid,
-        title: data.title,
-        content: data.content,
-        images: (data.images ?? []).map((img: { url: string }) =>
-          img.url.startsWith('http')
-            ? img.url
-            : `${FULL_BASE_URL}${img.url}`
-        ),
-        author: data.author?.nickname ?? '未知用户',
-        authorAvatar: data.author?.profilePictureUrl
-          ? `${FULL_BASE_URL}${data.author.profilePictureUrl}`
-          : 'https://via.placeholder.com/200x200.png?text=No+Avatar',
-        likeCount: data.likeCount ?? 0,
-        collectCount: data.collectCount ?? 0,
-        commentCount: data.commentCount ?? 0,
-        likedByMe: data.likedByMe ?? false,
-        collectedByMe: data.collectedByMe ?? false,
-      };
-      setPost(updated);
-      setIsLiked(updated.likedByMe);
-      setIsCollected(updated.collectedByMe);
+      setPost(prev => prev && ({
+        ...prev,
+        likeCount: data.likeCount,
+        collectCount: data.collectCount,
+        commentCount: data.commentCount,
+        likedByMe: data.likedByMe,
+        collectedByMe: data.collectedByMe,
+      }));
+      setIsLiked(data.likedByMe);
+      setIsCollected(data.collectedByMe);
     } catch (error) {
       console.error(`[❌ Failed to toggle ${type}]`, error);
     }
   };
 
   const scrollToComments = () =>
-    scrollViewRef.current?.scrollToOffset({ offset: commentY, animated: true });
+    listRef.current?.scrollToOffset({ offset: commentY, animated: true });
+
+  // 删除评论
+  const handleDeleteComment = (commentId: string) => {
+    Alert.alert('确认删除', '确定要删除这条评论吗？', [
+      { text: '取消', style: 'cancel' },
+      {
+        text: '删除',
+        style: 'destructive',
+        onPress: async () => {
+          try {
+            const url = `${FULL_BASE_URL}/api/comments/${commentId}` +
+                        `?userUuid=${profileData.uuid}`;
+            await fetch(url, {
+              method: 'DELETE',
+              credentials: 'include',
+            });
+            setComments(prev => prev.filter(c => c.id !== commentId));
+            setPost(prev => prev && ({
+              ...prev,
+              commentCount: Math.max(0, prev.commentCount - 1),
+            }));
+          } catch (error) {
+            console.error('[❌ Failed to delete comment]', error);
+          }
+        },
+      },
+    ]);
+  };
 
   if (loading || !post) {
     return (
@@ -235,10 +267,10 @@ const PostDetailScreen = () => {
     <View style={styles.container}>
       <StatusBar barStyle="dark-content" />
       <FlatList
-        ref={scrollViewRef}
+        ref={listRef}
         ListHeaderComponent={
           <>
-            {/* Top bar with author avatar */}
+            {/* 顶部导航和作者信息 */}
             <View style={styles.topBar}>
               <TouchableOpacity onPress={() => navigation.goBack()}>
                 <Ionicons name="chevron-back" size={24} />
@@ -254,7 +286,7 @@ const PostDetailScreen = () => {
               </TouchableOpacity>
             </View>
 
-            {/* Image carousel */}
+            {/* 图片轮播 */}
             <FlatList
               horizontal
               data={post.images}
@@ -268,8 +300,8 @@ const PostDetailScreen = () => {
                     styles.image,
                     {
                       height:
-                        ((imageDimensions[index]?.height ?? width) /
-                          (imageDimensions[index]?.width ?? 1)) *
+                        (imageDimensions[index]?.height! /
+                          imageDimensions[index]?.width!) *
                         width,
                     },
                   ]}
@@ -278,13 +310,13 @@ const PostDetailScreen = () => {
               )}
             />
 
-            {/* Title & content */}
+            {/* 标题和正文 */}
             <View style={styles.contentContainer}>
               <Text style={styles.title}>{post.title}</Text>
               <Text style={styles.body}>{post.content || '暂无内容'}</Text>
             </View>
 
-            {/* Comments header */}
+            {/* 评论区标题和排序 */}
             <View
               onLayout={e => setCommentY(e.nativeEvent.layout.y)}
               style={styles.commentHeader}
@@ -315,7 +347,7 @@ const PostDetailScreen = () => {
           </>
         }
         data={comments}
-        keyExtractor={item => item.id}
+        keyExtractor={item => item.id}  
         renderItem={({ item }) => (
           <View style={styles.commentItem}>
             <FastImage
@@ -323,24 +355,63 @@ const PostDetailScreen = () => {
               style={styles.commentAvatar}
               resizeMode={FastImage.resizeMode.cover}
             />
-            <View style={{ flex: 1 }}>
+            <View style={{ flex: 1, marginLeft: 8 }}>
               <View style={styles.commentTopRow}>
                 <Text style={styles.commentUser}>{item.user}</Text>
-                <TouchableOpacity style={styles.likeButton}>
-                  <Ionicons
-                    name={item.liked ? 'heart' : 'heart-outline'}
-                    size={16}
-                    color={item.liked ? '#f33' : '#888'}
-                  />
-                  <Text
-                    style={[
-                      styles.commentLikes,
-                      item.liked && { color: '#f33' },
-                    ]}
+                <View style={styles.commentActions}>
+                  {/* 点赞按钮 */}
+                  <TouchableOpacity
+                    style={styles.likeButton}
+                    onPress={async () => {
+                      if (!profileData?.uuid) return;
+                      try {
+                        const url = `${FULL_BASE_URL}/api/comments/${item.id}/likes` +
+                                    `?userUuid=${profileData.uuid}`;
+                        const res = await fetch(url, {
+                          method: 'POST',
+                          credentials: 'include',
+                        });
+                        const updated: any = await res.json();
+                        setComments(prev =>
+                          prev.map(c =>
+                            c.id === item.id
+                              ? {
+                                  ...c,
+                                  likes: updated.likeCount,
+                                  liked: updated.likedByCurrentUser,
+                                }
+                              : c
+                          )
+                        );
+                      } catch (err) {
+                        console.error(err);
+                      }
+                    }}
                   >
-                    {item.likes}
-                  </Text>
-                </TouchableOpacity>
+                    <Ionicons
+                      name={item.liked ? 'heart' : 'heart-outline'}
+                      size={16}
+                      color={item.liked ? '#f33' : '#888'}
+                    />
+                    <Text
+                      style={[
+                        styles.commentLikes,
+                        item.liked && { color: '#f33' },
+                      ]}
+                    >
+                      {item.likes}
+                    </Text>
+                  </TouchableOpacity>
+                  {/* 删除按钮，仅作者可见 */}
+                  {profileData?.uuid === item.authorUuid && (
+                    <TouchableOpacity
+                      onPress={() => handleDeleteComment(item.id)}
+                      style={{ marginLeft: 16 }}
+                    >
+                      <Ionicons name="trash-outline" size={16} color="#888" />
+                    </TouchableOpacity>
+                  )}
+                </View>
               </View>
               <Text style={styles.commentContent}>{item.content}</Text>
               <Text style={styles.commentTime}>{item.time}</Text>
@@ -354,27 +425,53 @@ const PostDetailScreen = () => {
         }
       />
 
+      {/* 底部操作栏 */}
       <View style={styles.actions}>
-        <TouchableOpacity style={styles.commentInput} onPress={() => setShowCommentModal(true)}>
+        <TouchableOpacity
+          style={styles.commentInput}
+          onPress={() => setShowCommentModal(true)}
+        >
           <Ionicons name="pencil-outline" size={16} color="#888" />
           <Text style={styles.commentText}>说点什么…</Text>
         </TouchableOpacity>
         <View style={styles.rightActions}>
-          <TouchableOpacity style={styles.actionItem} onPress={() => toggleReaction('LIKE')}>
-            <Ionicons name={isLiked ? 'heart' : 'heart-outline'} size={22} color={isLiked ? '#f33' : '#888'} />
-            <Text style={[styles.count, isLiked && { color: '#f33' }]}>{post.likeCount ?? 0}</Text>
+          <TouchableOpacity
+            style={styles.actionItem}
+            onPress={() => toggleReaction('LIKE')}
+          >
+            <Ionicons
+              name={isLiked ? 'heart' : 'heart-outline'}
+              size={22}
+              color={isLiked ? '#f33' : '#888'}
+            />
+            <Text style={[styles.count, isLiked && { color: '#f33' }]}>
+              {post.likeCount}
+            </Text>
           </TouchableOpacity>
-          <TouchableOpacity style={styles.actionItem} onPress={() => toggleReaction('COLLECT')}>
-            <Ionicons name={isCollected ? 'star' : 'star-outline'} size={22} color={isCollected ? '#fc0' : '#888'} />
-            <Text style={[styles.count, isCollected && { color: '#fc0' }]}>{post.collectCount ?? 0}</Text>
+          <TouchableOpacity
+            style={styles.actionItem}
+            onPress={() => toggleReaction('COLLECT')}
+          >
+            <Ionicons
+              name={isCollected ? 'star' : 'star-outline'}
+              size={22}
+              color={isCollected ? '#fc0' : '#888'}
+            />
+            <Text style={[styles.count, isCollected && { color: '#fc0' }]}>
+              {post.collectCount}
+            </Text>
           </TouchableOpacity>
-          <TouchableOpacity style={styles.actionItem} onPress={scrollToComments}>
+          <TouchableOpacity
+            style={styles.actionItem}
+            onPress={scrollToComments}
+          >
             <Ionicons name="chatbubble-outline" size={22} />
-            <Text style={styles.count}>{post.commentCount ?? 0}</Text>
+            <Text style={styles.count}>{post.commentCount}</Text>
           </TouchableOpacity>
         </View>
       </View>
 
+      {/* 评论输入弹窗 */}
       <Modal
         visible={showCommentModal}
         transparent
@@ -401,7 +498,10 @@ const PostDetailScreen = () => {
               autoFocus
             />
             <TouchableOpacity
-              style={[styles.submitButton, !commentText.trim() && styles.disabledButton]}
+              style={[
+                styles.submitButton,
+                !commentText.trim() && styles.disabledButton,
+              ]}
               onPress={async () => {
                 if (!commentText.trim()) return;
                 try {
@@ -409,27 +509,36 @@ const PostDetailScreen = () => {
                     content: commentText.trim(),
                     authorUuid: profileData?.uuid ?? null,
                   };
-                  const res = await fetch(`${FULL_BASE_URL}/api/posts/${initialPost.uuid}/comments`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(payload),
-                  });
+                  const res = await fetch(
+                    `${FULL_BASE_URL}/api/posts/${initialPost.uuid}/comments`,
+                    {
+                      method: 'POST',
+                      credentials: 'include',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify(payload),
+                    }
+                  );
                   const data = await res.json();
                   const newComment: CommentType = {
                     id: data.uuid,
-                    user: data.author?.nickname ?? '未知用户',
-                    avatar: data.author?.profilePictureUrl
+                    authorUuid: data.author.uuid,
+                    user: data.author.nickname,
+                    avatar: data.author.profilePictureUrl
                       ? `${FULL_BASE_URL}${data.author.profilePictureUrl}`
                       : 'https://via.placeholder.com/100x100.png?text=No+Avatar',
                     content: data.content,
                     time: new Date(data.createdAt).toLocaleString(),
                     likes: 0,
-                    liked: false,
+                    liked: data.likedByCurrentUser ?? false,
                   };
                   setComments(prev => [newComment, ...prev]);
                   setCommentText('');
                   setShowCommentModal(false);
-                  setPost(prev => prev ? { ...prev, commentCount: (prev.commentCount ?? 0) + 1 } : prev);
+                  setPost(prev =>
+                    prev
+                      ? { ...prev, commentCount: prev.commentCount + 1 }
+                      : prev
+                  );
                 } catch (error) {
                   console.error('[❌ Failed to add comment]', error);
                 }

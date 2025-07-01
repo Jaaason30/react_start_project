@@ -14,4 +14,7 @@ public class CommentDto {
     private UserSummaryDto author;
     private long likeCount;
     private LocalDateTime createdAt;
+
+    // 新增：当前用户是否已点赞
+    private boolean likedByCurrentUser;
 }

@@ -1,5 +1,4 @@
 // src/main/java/com/zusa/backend/service/CommentService.java
-
 package com.zusa.backend.service;
 
 import com.zusa.backend.dto.post.CommentDto;
@@ -10,22 +9,27 @@ import java.util.UUID;
 
 public interface CommentService {
 
-    /** 评论排序类型 */
     enum SortType { LATEST, HOT }
 
-    /** ------------------ 帖子下的评论分页拉取 ------------------ */
-    Page<CommentDto> list(UUID postUuid,
-                          SortType sort,
-                          Pageable pageable);
+    /**
+     * 帖子下的评论分页拉取
+     * @param postUuid 帖子 UUID
+     * @param sort 排序类型
+     * @param pageable 分页参数
+     * @param userUuid 当前用户 UUID（可为 null）
+     */
+    Page<CommentDto> list(UUID postUuid, SortType sort, Pageable pageable, UUID userUuid);
 
-    /** ------------------ 新增评论 ------------------ */
-    CommentDto add(UUID postUuid,
-                   UUID authorUuid,
-                   String content);
-    /** ------------------ 点赞 / 取消点赞评论 ------------------ */
-    CommentDto toggleLike(UUID commentUuid,
-                          UUID userUuid);
+    CommentDto add(UUID postUuid, UUID authorUuid, String content);
 
-    /** ------------------ 获取单条评论详情（用于管理后台/调试） ------------------ */
-    CommentDto get(UUID commentUuid);
+    CommentDto toggleLike(UUID commentUuid, UUID userUuid);
+
+    /**
+     * 获取单条评论详情
+     * @param commentUuid 评论 UUID
+     * @param userUuid 当前用户 UUID（可为 null）
+     */
+    CommentDto get(UUID commentUuid, UUID userUuid);
+
+    void delete(UUID commentUuid, UUID authorUuid);
 }

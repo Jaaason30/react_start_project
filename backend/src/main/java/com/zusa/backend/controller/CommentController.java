@@ -1,76 +1,91 @@
 // src/main/java/com/zusa/backend/controller/CommentController.java
-
 package com.zusa.backend.controller;
 
 import com.zusa.backend.dto.post.AddCommentReq;
 import com.zusa.backend.dto.post.CommentDto;
 import com.zusa.backend.service.CommentService;
-import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
-import lombok.Value;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.core.userdetails.UserDetails;
-import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.UUID;
 
 @RestController
-@RequiredArgsConstructor
 @RequestMapping("/api")
-@Validated
+@RequiredArgsConstructor
 public class CommentController {
 
     private final CommentService commentService;
 
-    /* ==================== 列表 ==================== */
+    /** 评论列表，带分页、排序及点赞状态 */
     @GetMapping("/posts/{postUuid}/comments")
-    public Page<CommentDto> list(@PathVariable UUID postUuid,
-                                 @RequestParam(defaultValue = "LATEST") CommentService.SortType sort,
-                                 Pageable pageable) {
-        return commentService.list(postUuid, sort, pageable);
+    public Page<CommentDto> list(
+            @PathVariable UUID postUuid,
+            @RequestParam(name = "sortType", defaultValue = "LATEST") CommentService.SortType sortType,
+            @RequestParam(name = "userUuid", required = false) UUID userUuid,
+            Pageable pageable
+    ) {
+        return commentService.list(postUuid, sortType, pageable, userUuid);
     }
 
-    /* ==================== 新增 ==================== */
+    /** 新增评论 */
     @PostMapping("/posts/{postUuid}/comments")
-    public ResponseEntity<CommentDto> add(@PathVariable UUID postUuid,
-                                          @RequestBody @Validated AddCommentReq req,
-                                          @AuthenticationPrincipal UserDetails principal) {
-
-        UUID author;
-        if (principal != null) {
-            // 登录用户优先
-            author = UUID.fromString(principal.getUsername());
-        } else if (req.getAuthorUuid() != null) {
-            // 支持匿名时传 authorUuid
-            author = req.getAuthorUuid();
-        } else {
-            throw new RuntimeException("未提供用户身份（请登录或指定 authorUuid）");
-        }
-
-        CommentDto dto = commentService.add(postUuid, author, req.getContent());
-        return ResponseEntity.ok(dto);
+    public ResponseEntity<CommentDto> add(
+            @PathVariable UUID postUuid,
+            @RequestBody @Valid AddCommentReq req,
+            @AuthenticationPrincipal UserDetails principal
+    ) {
+        UUID author = principal != null
+                ? UUID.fromString(principal.getUsername())
+                : req.getAuthorUuid();
+        return ResponseEntity.ok(commentService.add(postUuid, author, req.getContent()));
     }
 
-    /* ================= 点赞 / 取消点赞 ================ */
+    /** 点赞 / 取消点赞 */
     @PostMapping("/comments/{commentUuid}/likes")
-    public ResponseEntity<CommentDto> toggleLike(@PathVariable UUID commentUuid,
-                                                 @AuthenticationPrincipal UserDetails principal) {
-        if (principal == null) {
-            throw new RuntimeException("请先登录后再点赞评论");
+    public ResponseEntity<CommentDto> toggleLike(
+            @PathVariable UUID commentUuid,
+            @AuthenticationPrincipal UserDetails principal,
+            @RequestParam(name="userUuid", required=false) UUID userUuid
+    ) {
+        UUID me = principal != null
+                ? UUID.fromString(principal.getUsername())
+                : userUuid;
+        if (me == null) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
         }
-        UUID me = UUID.fromString(principal.getUsername());
-        CommentDto dto = commentService.toggleLike(commentUuid, me);
-        return ResponseEntity.ok(dto);
+        return ResponseEntity.ok(commentService.toggleLike(commentUuid, me));
     }
 
-    /* ---------- 可选：若需要提供单条评论详情 ---------- */
+    /** 单条评论详情，带点赞状态 */
     @GetMapping("/comments/{commentUuid}")
-    public ResponseEntity<CommentDto> get(@PathVariable UUID commentUuid) {
-        CommentDto dto = commentService.get(commentUuid);
-        return ResponseEntity.ok(dto);
+    public ResponseEntity<CommentDto> get(
+            @PathVariable UUID commentUuid,
+            @RequestParam(name="userUuid", required=false) UUID userUuid
+    ) {
+        return ResponseEntity.ok(commentService.get(commentUuid, userUuid));
+    }
+
+    /** 删除评论（仅作者） */
+    @DeleteMapping("/comments/{commentUuid}")
+    public ResponseEntity<Void> delete(
+            @PathVariable UUID commentUuid,
+            @AuthenticationPrincipal UserDetails principal,
+            @RequestParam(name="userUuid", required=false) UUID userUuid
+    ) {
+        UUID me = principal != null
+                ? UUID.fromString(principal.getUsername())
+                : userUuid;
+        if (me == null) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        }
+        commentService.delete(commentUuid, me);
+        return ResponseEntity.noContent().build();
     }
 }
