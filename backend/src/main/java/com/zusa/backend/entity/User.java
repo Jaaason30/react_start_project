@@ -88,6 +88,16 @@ public class User {
             joinColumns = @JoinColumn(name = "user_id"),
             inverseJoinColumns = @JoinColumn(name = "venue_id"))
     private List<Venue> preferredVenues = new ArrayList<>();
+    @ManyToMany
+    @JoinTable(
+            name = "user_follow",
+            joinColumns = @JoinColumn(name = "followee_id"),
+            inverseJoinColumns = @JoinColumn(name = "follower_id")
+    )
+    private Set<User> followers = new HashSet<>();
+
+    @ManyToMany(mappedBy = "followers")
+    private Set<User> following = new HashSet<>();
 
     /** 累计收到的“赞”数 */
     @Column(nullable = false)

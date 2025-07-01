@@ -43,4 +43,9 @@ public class UserDto {
     /* ------- 统计 ------- */
     private long totalLikesReceived;
     private UserDatesDto dates;
+    private long followerCount;
+    private long followingCount;
+    private List<UserSummaryDto> followers;
+    private List<UserSummaryDto> following;
+
 }

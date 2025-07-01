@@ -1,4 +1,5 @@
 // src/theme/PostDetailScreen.styles.ts
+
 import { StyleSheet, StatusBar, Platform, Dimensions } from 'react-native';
 
 const { width } = Dimensions.get('window');
@@ -16,21 +17,38 @@ export const styles = StyleSheet.create({
   },
   avatar: { width: 32, height: 32, borderRadius: 16, marginHorizontal: 8 },
   authorName: { fontWeight: 'bold', fontSize: 16 },
+
+  // 关注按钮
   followBtn: {
-    marginLeft: 'auto', paddingHorizontal: 10, paddingVertical: 4,
-    borderWidth: 1, borderColor: '#f33', borderRadius: 16,
+    marginLeft: 'auto',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderWidth: 1,
+    borderColor: '#f33',
+    borderRadius: 16,
   },
   followText: { color: '#f33', fontSize: 12 },
-  image: { width },
-  content: {
-  paddingHorizontal: 12,
-  paddingTop: 8,
-},
 
+  // 取消关注按钮
+  unfollowBtn: {
+    marginLeft: 'auto',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderWidth: 1,
+    borderColor: '#ccc',
+    borderRadius: 16,
+    backgroundColor: '#f0f0f0',
+  },
+  unfollowText: {
+    color: '#888',
+    fontSize: 12,
+  },
+
+  image: { width },
   contentContainer: { paddingHorizontal: 12, paddingTop: 8 },
   title: { fontSize: 18, fontWeight: 'bold', marginBottom: 6 },
-  author: { fontSize: 14, color: '#555', marginBottom: 6 }, // 👈 添加此行
   body: { fontSize: 15, lineHeight: 22, color: '#333', marginBottom: 10 },
+
   actions: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -69,10 +87,6 @@ export const styles = StyleSheet.create({
     marginLeft: 6,
     color: '#555',
     fontSize: 14,
-  },
-  commentSection: {
-    paddingHorizontal: 12,
-    paddingBottom: 80,
   },
   commentHeader: {
     flexDirection: 'row',
@@ -123,15 +137,15 @@ export const styles = StyleSheet.create({
     fontWeight: 'bold',
     fontSize: 14,
   },
-  commentTime: {
-    color: '#999',
-    fontSize: 12,
-    marginTop: 4,
-  },
   commentContent: {
     fontSize: 14,
     marginTop: 2,
     lineHeight: 20,
+  },
+  commentTime: {
+    color: '#999',
+    fontSize: 12,
+    marginTop: 4,
   },
   likeButton: {
     flexDirection: 'row',
@@ -142,6 +156,11 @@ export const styles = StyleSheet.create({
     fontSize: 12,
     color: '#666',
     marginLeft: 4,
+  },
+  commentActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 4,
   },
   modalContainer: {
     flex: 1,
@@ -188,9 +207,4 @@ export const styles = StyleSheet.create({
     fontWeight: 'bold',
     fontSize: 16,
   },
-  commentActions: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginTop: 4,
-},
 });

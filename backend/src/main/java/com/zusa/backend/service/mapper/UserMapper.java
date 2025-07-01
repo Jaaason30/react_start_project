@@ -1,3 +1,5 @@
+// src/main/java/com/zusa/backend/service/mapper/UserMapper.java
+
 package com.zusa.backend.service.mapper;
 
 import com.zusa.backend.dto.user.*;
@@ -10,6 +12,7 @@ import java.util.stream.Collectors;
 @Mapper(componentModel = "spring")
 public interface UserMapper {
 
+    /** 映射完整的 User → UserDto，手动处理复杂字段 */
     @Mapping(target = "profilePictureUrl",
             expression = "java(user.getProfilePicture() != null ? \"/api/media/profile/\" + user.getProfilePicture().getUuid() : null)")
     @Mapping(target = "albumUrls",
@@ -22,7 +25,7 @@ public interface UserMapper {
             expression = "java(user.getPreferredVenues().stream().map(v -> v.getId()).toList())")
     @Mapping(target = "genderPreferenceIds",
             expression = "java(user.getGenderPreferences().stream().map(Gender::getId).toList())")
-    @Mapping(target = "dates", ignore = true) // 使用 @AfterMapping 处理
+    @Mapping(target = "dates", ignore = true)                 // @AfterMapping 填充
     @Mapping(target = "city", ignore = true)
     @Mapping(target = "gender", ignore = true)
     @Mapping(target = "genderPreferences", ignore = true)
@@ -89,4 +92,9 @@ public interface UserMapper {
             dto.setDates(datesDto);
         }
     }
+
+    /** 简化版：User → UserSummaryDto，只含 UUID、昵称、头像 URL */
+    @Mapping(target = "profilePictureUrl",
+            expression = "java(user.getProfilePicture() != null ? \"/api/media/profile/\" + user.getProfilePicture().getUuid() : null)")
+    UserSummaryDto toSummaryDto(User user);
 }

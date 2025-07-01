@@ -1,10 +1,7 @@
 // src/main/java/com/zusa/backend/service/impl/PostServiceImpl.java
 package com.zusa.backend.service.impl;
 
-import com.zusa.backend.dto.post.PostDetailDto;
-import com.zusa.backend.dto.post.PostImageDto;
-import com.zusa.backend.dto.post.PostSummaryDto;
-import com.zusa.backend.dto.post.TagDto;
+import com.zusa.backend.dto.post.*;
 import com.zusa.backend.entity.User;
 import com.zusa.backend.entity.post.Post;
 import com.zusa.backend.entity.post.PostImage;
@@ -35,12 +32,12 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class PostServiceImpl implements PostService {
 
-    private final PostRepository      postRepo;
-    private final UserRepository      userRepo;
-    private final TagRepository       tagRepo;
-    private final ReactionRepository  reactionRepo;
-    private final PostMapper          mapper;
-    private final MediaService        mediaService;
+    private final PostRepository     postRepo;
+    private final UserRepository     userRepo;
+    private final TagRepository      tagRepo;
+    private final ReactionRepository reactionRepo;
+    private final PostMapper         mapper;
+    private final MediaService       mediaService;
 
     @Value("${app.post.official-emails}")
     private List<String> officialEmails;
@@ -51,83 +48,57 @@ public class PostServiceImpl implements PostService {
     // ========== 1) Feed ==========
     @Override
     @Transactional(readOnly = true)
-    public Page<PostSummaryDto> listFeed(FeedType type,
-                                         UUID me,
-                                         Pageable pageable) {
+    public Page<PostSummaryDto> listFeed(FeedType type, UUID me, Pageable pageable) {
         if (pageable.getSort().isUnsorted()) {
-            pageable = PageRequest.of(
-                    pageable.getPageNumber(),
-                    pageable.getPageSize(),
-                    Sort.Direction.DESC,
-                    "createdAt"
-            );
+            pageable = PageRequest.of(pageable.getPageNumber(), pageable.getPageSize(),
+                    Sort.Direction.DESC, "createdAt");
         }
 
         Page<Post> page = switch (type) {
-            case OFFICIAL ->
-                    postRepo.findByAuthor_EmailInOrderByCreatedAtDesc(officialEmails, pageable);
-            case FOLLOWED ->
-                    throw new UnsupportedOperationException("FOLLOWED feed 尚未实现");
-            case USER ->
-                    postRepo.findAllByOrderByCreatedAtDesc(pageable);
+            case OFFICIAL -> postRepo.findByAuthor_EmailInOrderByCreatedAtDesc(officialEmails, pageable);
+            case FOLLOWED -> throw new UnsupportedOperationException("FOLLOWED feed 尚未实现");
+            case USER     -> postRepo.findAllByOrderByCreatedAtDesc(pageable);
         };
 
         return toSummaryPage(page, me);
     }
 
-    // ========== 2) 按标签查询 ==========
+    // ========== 2) Tag 查询 ==========
     @Override
     @Transactional(readOnly = true)
-    public Page<PostSummaryDto> listByTag(String tagName,
-                                          UUID me,
-                                          Pageable pageable) {
+    public Page<PostSummaryDto> listByTag(String tagName, UUID me, Pageable pageable) {
         if (pageable.getSort().isUnsorted()) {
-            pageable = PageRequest.of(
-                    pageable.getPageNumber(),
-                    pageable.getPageSize(),
-                    Sort.Direction.DESC,
-                    "createdAt"
-            );
+            pageable = PageRequest.of(pageable.getPageNumber(), pageable.getPageSize(),
+                    Sort.Direction.DESC, "createdAt");
         }
-
-        Page<Post> page = postRepo
-                .findByTags_NameOrderByCreatedAtDesc(tagName.trim().toLowerCase(), pageable);
-
+        Page<Post> page = postRepo.findByTags_NameOrderByCreatedAtDesc(tagName.toLowerCase(), pageable);
         return toSummaryPage(page, me);
     }
 
-    // ========== 3) 全文搜索（使用自定义 JPQL） ==========
+    // ========== 3) 全文搜索 ==========
     @Override
     @Transactional(readOnly = true)
-    public Page<PostSummaryDto> search(String keyword,
-                                       UUID me,
-                                       Pageable pageable) {
+    public Page<PostSummaryDto> search(String keyword, UUID me, Pageable pageable) {
         if (pageable.getSort().isUnsorted()) {
-            pageable = PageRequest.of(
-                    pageable.getPageNumber(),
-                    pageable.getPageSize(),
-                    Sort.Direction.DESC,
-                    "createdAt"
-            );
+            pageable = PageRequest.of(pageable.getPageNumber(), pageable.getPageSize(),
+                    Sort.Direction.DESC, "createdAt");
         }
-
         String kw = Optional.ofNullable(keyword).orElse("").trim();
         Page<Post> page = postRepo.searchByKeyword(kw, pageable);
-
         return toSummaryPage(page, me);
     }
 
-    // Helper to convert Page<Post> → Page<PostSummaryDto>
+    // Helper: Post → PostSummaryDto（含 reactions + tags）
     private Page<PostSummaryDto> toSummaryPage(Page<Post> page, UUID me) {
         List<PostSummaryDto> dtos = page.getContent().stream()
-                .map(mapper::toSummary)
+                .map(mapper::toSummaryDto)
                 .collect(Collectors.toList());
 
         if (me != null) {
             markReactions(dtos, me);
         }
 
-        // 填充标签列表
+        // 填充 tags 列表
         dtos.forEach(dto -> {
             Post post = postRepo.findByUuid(dto.getUuid())
                     .orElseThrow(() -> new EntityNotFoundException("Post not found"));
@@ -148,39 +119,46 @@ public class PostServiceImpl implements PostService {
     // ========== 4) 详情 ==========
     @Override
     @Transactional(readOnly = true)
-    public PostDetailDto getDetail(UUID postUuid, UUID me) {
+    public PostDetailDto getDetail(UUID postUuid, UUID currentUserUuid) {
+        // 1) 加载帖子及关联
         Post post = postRepo.findDetailByUuid(postUuid)
                 .orElseThrow(() -> new EntityNotFoundException("Post not found"));
 
+        // 2) MapStruct 转 DTO（忽略 reactions/tags/images/followed）
         PostDetailDto dto = mapper.toDetail(post);
 
-        // images
-        dto.setImages(post.getImages().stream()
-                .map(img -> {
-                    PostImageDto d = new PostImageDto();
-                    d.setUrl(img.getUrl());
-                    d.setIdx(img.getIdx());
-                    return d;
-                })
-                .collect(Collectors.toList())
-        );
+        // 3) 填充 images
+        List<PostImageDto> imgs = post.getImages().stream()
+                .map(mapper::toImageDto)
+                .collect(Collectors.toList());
+        dto.setImages(imgs);
 
-        // tags
-        dto.setTags(post.getTags().stream()
+        // 4) 填充 tags
+        Set<TagDto> tagDtos = post.getTags().stream()
                 .map(t -> {
-                    TagDto d = new TagDto();
-                    d.setId(t.getId());
-                    d.setName(t.getName());
-                    return d;
+                    TagDto td = new TagDto();
+                    td.setId(t.getId());
+                    td.setName(t.getName());
+                    return td;
                 })
-                .collect(Collectors.toSet())
-        );
+                .collect(Collectors.toSet());
+        dto.setTags(tagDtos);
 
-        if (me != null) {
-            List<Reaction.Type> types = reactionRepo.findTypesByPostAndUser(postUuid, me);
-            dto.setLikedByMe(types.contains(Reaction.Type.LIKE));
-            dto.setCollectedByMe(types.contains(Reaction.Type.COLLECT));
+        // 5) 查询点赞/收藏状态
+        if (currentUserUuid != null) {
+            List<Reaction.Type> types = reactionRepo.findTypesByPostAndUser(postUuid, currentUserUuid);
+            dto.setLikedByCurrentUser(types.contains(Reaction.Type.LIKE));
+            dto.setCollectedByCurrentUser(types.contains(Reaction.Type.COLLECT));
         }
+
+        // 6) 查询关注状态
+        boolean followed = false;
+        if (currentUserUuid != null) {
+            User viewer = userRepo.findByUuid(currentUserUuid)
+                    .orElseThrow(() -> new EntityNotFoundException("User not found"));
+            followed = post.getAuthor().getFollowers().contains(viewer);
+        }
+        dto.setFollowedByCurrentUser(followed);
 
         return dto;
     }
@@ -191,7 +169,6 @@ public class PostServiceImpl implements PostService {
     public UUID createPost(CreatePostCmd cmd, UUID authorUuid) {
         User author = userRepo.findByUuid(authorUuid)
                 .orElseThrow(() -> new EntityNotFoundException("User not found"));
-
         if (cmd.images() == null || cmd.images().isEmpty()) {
             throw new IllegalArgumentException("必须上传至少一张图片");
         }
@@ -200,12 +177,9 @@ public class PostServiceImpl implements PostService {
         }
 
         List<String> urls = mediaService.uploadImages(cmd.images(), "post");
-        List<PostImage> images = new ArrayList<>(urls.size());
+        List<PostImage> images = new ArrayList<>();
         for (int i = 0; i < urls.size(); i++) {
-            images.add(PostImage.builder()
-                    .idx(i)
-                    .url(urls.get(i))
-                    .build());
+            images.add(PostImage.builder().idx(i).url(urls.get(i)).build());
         }
 
         Set<Tag> tags = Optional.ofNullable(cmd.tagNames()).orElse(Set.of()).stream()
@@ -235,18 +209,17 @@ public class PostServiceImpl implements PostService {
         Post post = postRepo.findByUuid(cmd.postUuid())
                 .orElseThrow(() -> new EntityNotFoundException("Post not found"));
         if (!post.getAuthor().getUuid().equals(operatorUuid)) {
-            throw new SecurityException("No permission to edit this post");
+            throw new SecurityException("无权编辑此帖");
         }
-
         if (cmd.title() != null) post.setTitle(cmd.title());
         if (cmd.content() != null) post.setContent(cmd.content());
         if (cmd.tagNames() != null) {
-            Set<Tag> tags = cmd.tagNames().stream()
+            Set<Tag> newTags = cmd.tagNames().stream()
                     .map(this::normalizeTag)
                     .filter(s -> !s.isBlank())
                     .map(this::getOrCreateTagWithRetry)
                     .collect(Collectors.toSet());
-            post.setTags(tags);
+            post.setTags(newTags);
         }
     }
 
@@ -257,20 +230,18 @@ public class PostServiceImpl implements PostService {
         Post post = postRepo.findByUuid(postUuid)
                 .orElseThrow(() -> new EntityNotFoundException("Post not found"));
         if (!post.getAuthor().getUuid().equals(operatorUuid)) {
-            throw new SecurityException("No permission to delete this post");
+            throw new SecurityException("无权删除此帖");
         }
         postRepo.delete(post);
     }
 
-    // ========== 工具：标记 reactions ==========
+    // ====== 辅助：标记 reactions ======
     private void markReactions(List<PostSummaryDto> list, UUID me) {
         if (list.isEmpty()) return;
-        List<UUID> postIds = list.stream()
-                .map(PostSummaryDto::getUuid)
-                .collect(Collectors.toList());
+        List<UUID> ids = list.stream().map(PostSummaryDto::getUuid).toList();
         var reactions = reactionRepo.findAll((root, q, cb) -> cb.and(
                 cb.equal(root.get("user").get("uuid"), me),
-                root.get("post").get("uuid").in(postIds)
+                root.get("post").get("uuid").in(ids)
         ));
         Set<UUID> liked = reactions.stream()
                 .filter(r -> r.getType() == Reaction.Type.LIKE)
@@ -281,17 +252,17 @@ public class PostServiceImpl implements PostService {
                 .map(r -> r.getPost().getUuid())
                 .collect(Collectors.toSet());
         list.forEach(dto -> {
-            dto.setLikedByMe(liked.contains(dto.getUuid()));
-            dto.setCollectedByMe(collected.contains(dto.getUuid()));
+            dto.setLikedByCurrentUser(liked.contains(dto.getUuid()));
+            dto.setCollectedByCurrentUser(collected.contains(dto.getUuid()));
         });
     }
 
-    // ========== 工具：规范化标签 ==========
+    // ====== 工具：规范化标签 ======
     private String normalizeTag(String raw) {
         return raw == null ? "" : raw.trim().replace("#", "").toLowerCase();
     }
 
-    // ========== 工具：幂等创建标签 ==========
+    // ====== 工具：幂等创建标签 ======
     private Tag getOrCreateTagWithRetry(String name) {
         return tagRepo.findByName(name).orElseGet(() -> {
             try {

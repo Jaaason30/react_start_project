@@ -23,8 +23,12 @@ public class PostSummaryDto {
     private Set<TagDto> tags;
 
     /**
-     * 以下两个字段用于标记“当前登录用户”是否已点赞 / 收藏：
+     * 以下三个字段用于标记“当前登录用户”在该帖子上的操作状态：
+     * - likedByCurrentUser: 是否已点赞
+     * - collectedByCurrentUser: 是否已收藏
+     * - followedByCurrentUser: 是否已关注作者
      */
-    private boolean likedByMe;
-    private boolean collectedByMe;
+    private boolean likedByCurrentUser;
+    private boolean collectedByCurrentUser;
+    private boolean followedByCurrentUser;
 }

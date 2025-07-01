@@ -1,18 +1,22 @@
-// ================= UserServiceImpl.java =================
 package com.zusa.backend.service.impl;
 
-import com.zusa.backend.dto.user.*;
+import com.zusa.backend.dto.user.UserDto;
+import com.zusa.backend.dto.user.UserSummaryDto;
 import com.zusa.backend.entity.User;
 import com.zusa.backend.entity.user.*;
 import com.zusa.backend.repository.*;
 import com.zusa.backend.service.UserService;
 import com.zusa.backend.service.mapper.UserMapper;
-import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.Pageable;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;  // 使用 Spring 的 @Transactional
 
 import java.util.*;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -41,8 +45,66 @@ public class UserServiceImpl implements UserService {
                 .nickname(nickname)
                 .build();
         userRepo.save(u);
-
         return userMapper.toDto(u);
+    }
+
+    @Override
+    @Transactional
+    public void follow(UUID userUuid, UUID targetUuid) {
+        if (userUuid.equals(targetUuid)) {
+            throw new RuntimeException("不能关注自己");
+        }
+        User me = userRepo.findByUuid(userUuid)
+                .orElseThrow(() -> new RuntimeException("找不到当前用户"));
+        User target = userRepo.findByUuid(targetUuid)
+                .orElseThrow(() -> new RuntimeException("找不到目标用户"));
+
+        if (me.getFollowing().add(target)) {
+            target.getFollowers().add(me);
+            userRepo.saveAll(List.of(me, target));
+        }
+    }
+
+    @Override
+    @Transactional
+    public void unfollow(UUID userUuid, UUID targetUuid) {
+        User me = userRepo.findByUuid(userUuid)
+                .orElseThrow(() -> new RuntimeException("找不到当前用户"));
+        User target = userRepo.findByUuid(targetUuid)
+                .orElseThrow(() -> new RuntimeException("找不到目标用户"));
+
+        if (me.getFollowing().remove(target)) {
+            target.getFollowers().remove(me);
+            userRepo.saveAll(List.of(me, target));
+        }
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Page<UserSummaryDto> listFollowers(UUID userUuid, Pageable pageable) {
+        User user = userRepo.findByUuid(userUuid)
+                .orElseThrow(() -> new RuntimeException("找不到用户"));
+        List<UserSummaryDto> dtos = user.getFollowers().stream()
+                .sorted(Comparator.comparing(User::getNickname))
+                .skip(pageable.getOffset())
+                .limit(pageable.getPageSize())
+                .map(userMapper::toSummaryDto)
+                .collect(Collectors.toList());
+        return new PageImpl<>(dtos, pageable, user.getFollowers().size());
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Page<UserSummaryDto> listFollowing(UUID userUuid, Pageable pageable) {
+        User user = userRepo.findByUuid(userUuid)
+                .orElseThrow(() -> new RuntimeException("找不到用户"));
+        List<UserSummaryDto> dtos = user.getFollowing().stream()
+                .sorted(Comparator.comparing(User::getNickname))
+                .skip(pageable.getOffset())
+                .limit(pageable.getPageSize())
+                .map(userMapper::toSummaryDto)
+                .collect(Collectors.toList());
+        return new PageImpl<>(dtos, pageable, user.getFollowing().size());
     }
 
     @Override
@@ -58,7 +120,7 @@ public class UserServiceImpl implements UserService {
     }
 
     @Override
-    @Transactional
+    @Transactional(readOnly = true)
     public UserDto getUserProfileByUuid(UUID uuid) {
         User user = userRepo.findByUuid(uuid)
                 .orElseThrow(() -> new RuntimeException("找不到用户"));
@@ -92,7 +154,6 @@ public class UserServiceImpl implements UserService {
 
         if (req.getProfileBase64() != null && req.getProfileMime() != null) {
             UserProfilePicture pic = user.getProfilePicture();
-
             if (pic == null) {
                 UserProfilePicture newPic = UserProfilePicture.builder()
                         .uuid(UUID.randomUUID())
@@ -107,8 +168,9 @@ public class UserServiceImpl implements UserService {
             }
         }
 
-        if (req.getAlbumBase64List() != null && req.getAlbumMimeList() != null
-                && req.getAlbumBase64List().size() == req.getAlbumMimeList().size()) {
+        if (req.getAlbumBase64List() != null &&
+                req.getAlbumMimeList() != null &&
+                req.getAlbumBase64List().size() == req.getAlbumMimeList().size()) {
             List<UserPhoto> currentPhotos = new ArrayList<>(user.getAlbumPhotos());
             user.getAlbumPhotos().clear();
             userPhotoRepository.deleteAll(currentPhotos);

@@ -1,4 +1,5 @@
 // src/main/java/com/zusa/backend/controller/PostController.java
+
 package com.zusa.backend.controller;
 
 import com.zusa.backend.dto.post.PostDetailDto;
@@ -36,10 +37,15 @@ public class PostController {
     /*                 1) Feed 列表 /posts/feed               */
     /* ====================================================== */
     @GetMapping("/posts/feed")
-    public Page<PostSummaryDto> feed(@RequestParam(defaultValue = "USER") FeedType type,
-                                     Pageable pageable,
-                                     @AuthenticationPrincipal UserDetails principal) {
-        UUID me = principal == null ? null : UUID.fromString(principal.getUsername());
+    public Page<PostSummaryDto> feed(
+            @RequestParam(defaultValue = "USER") FeedType type,
+            Pageable pageable,
+            @AuthenticationPrincipal UserDetails principal) {
+
+        UUID me = (principal != null)
+                ? UUID.fromString(principal.getUsername())
+                : null;
+
         return postService.listFeed(type, me, pageable);
     }
 
@@ -47,15 +53,15 @@ public class PostController {
     /*                 2) 详情  /posts/{uuid}                 */
     /* ====================================================== */
     @GetMapping("/posts/{uuid}")
-    public PostDetailDto detail(@PathVariable UUID uuid,
-                                @RequestParam(required = false) UUID userUuid,
-                                @AuthenticationPrincipal UserDetails principal) {
-        UUID me = null;
-        if (principal != null) {
-            me = UUID.fromString(principal.getUsername());
-        } else if (userUuid != null) {
-            me = userUuid;
-        }
+    public PostDetailDto detail(
+            @PathVariable UUID uuid,
+            @RequestParam(name = "userUuid", required = false) UUID userUuid,
+            @AuthenticationPrincipal UserDetails principal) {
+
+        UUID me = (principal != null)
+                ? UUID.fromString(principal.getUsername())
+                : userUuid;
+
         return postService.getDetail(uuid, me);
     }
 
@@ -63,17 +69,19 @@ public class PostController {
     /*                 3) 创建  POST /posts                   */
     /* ====================================================== */
     @PostMapping(value = "/posts", consumes = "multipart/form-data")
-    public ResponseEntity<UUID> create(@ModelAttribute @Validated CreatePostForm form,
-                                       @RequestParam(required = false) UUID authorUuid,
-                                       @AuthenticationPrincipal UserDetails principal) {
-        UUID author = null;
-        if (principal != null) {
-            author = UUID.fromString(principal.getUsername());
-        } else if (authorUuid != null) {
-            author = authorUuid;
-        } else {
-            throw new RuntimeException("未提供用户身份（请登录或指定 authorUuid）");
+    public ResponseEntity<UUID> create(
+            @ModelAttribute @Validated CreatePostForm form,
+            @RequestParam(name = "authorUuid", required = false) UUID authorUuid,
+            @AuthenticationPrincipal UserDetails principal) {
+
+        UUID author = (principal != null)
+                ? UUID.fromString(principal.getUsername())
+                : authorUuid;
+
+        if (author == null) {
+            throw new RuntimeException("请登录或提供 authorUuid");
         }
+
         UUID postId = postService.createPost(form.toCmd(), author);
         return ResponseEntity.ok(postId);
     }
@@ -97,9 +105,11 @@ public class PostController {
     /*                 4) 编辑  PATCH /posts/{uuid}           */
     /* ====================================================== */
     @PatchMapping("/posts/{uuid}")
-    public void edit(@PathVariable UUID uuid,
-                     @RequestBody @Validated EditPostReq req,
-                     @AuthenticationPrincipal UserDetails principal) {
+    public void edit(
+            @PathVariable UUID uuid,
+            @RequestBody @Validated EditPostReq req,
+            @AuthenticationPrincipal UserDetails principal) {
+
         UUID me = UUID.fromString(principal.getUsername());
         postService.editPost(new EditPostCmd(
                 uuid,
@@ -120,8 +130,10 @@ public class PostController {
     /*                 5) 删除  DELETE /posts/{uuid}          */
     /* ====================================================== */
     @DeleteMapping("/posts/{uuid}")
-    public void delete(@PathVariable UUID uuid,
-                       @AuthenticationPrincipal UserDetails principal) {
+    public void delete(
+            @PathVariable UUID uuid,
+            @AuthenticationPrincipal UserDetails principal) {
+
         UUID me = UUID.fromString(principal.getUsername());
         postService.deletePost(uuid, me);
     }
@@ -133,11 +145,12 @@ public class PostController {
     public Page<PostSummaryDto> search(
             @RequestParam("kw") @NotBlank String keyword,
             Pageable pageable,
-            @AuthenticationPrincipal UserDetails principal
-    ) {
-        UUID me = principal == null
-                ? null
-                : UUID.fromString(principal.getUsername());
+            @AuthenticationPrincipal UserDetails principal) {
+
+        UUID me = (principal != null)
+                ? UUID.fromString(principal.getUsername())
+                : null;
+
         return postService.search(keyword, me, pageable);
     }
 }

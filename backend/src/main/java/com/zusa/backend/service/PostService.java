@@ -19,8 +19,7 @@ public interface PostService {
                                   Pageable pageable);
 
     /** 详情 */
-    PostDetailDto getDetail(UUID postUuid,
-                            UUID currentUserUuid);
+    PostDetailDto getDetail(UUID postUuid, UUID currentUserUuid);
 
     /** 创建帖子，返回帖子的外部 UUID */
     UUID createPost(CreatePostCmd cmd, UUID authorUuid);

@@ -24,16 +24,15 @@ import type { RouteProp } from '@react-navigation/native';
 import { styles } from '../../theme/PostDetailScreen.styles';
 import { useUserProfile } from '../../contexts/UserProfileContext';
 
-const FULL_BASE_URL = Platform.OS === 'android'
-  ? 'http://10.0.2.2:8080'
-  : 'http://localhost:8080';
+const FULL_BASE_URL =
+  Platform.OS === 'android' ? 'http://10.0.2.2:8080' : 'http://localhost:8080';
 const { width } = Dimensions.get('window');
 
-type RootStackParamList = {
-  PostDetail: { post: { uuid: string } };
-};
+/* ---------- 路由类型 ---------- */
+type RootStackParamList = { PostDetail: { post: { uuid: string } } };
 type PostDetailRouteProp = RouteProp<RootStackParamList, 'PostDetail'>;
 
+/* ---------- 业务类型 ---------- */
 type CommentType = {
   id: string;
   authorUuid: string;
@@ -45,7 +44,6 @@ type CommentType = {
   liked: boolean;
 };
 type SortType = '最新' | '最热';
-
 type PostType = {
   uuid: string;
   title: string;
@@ -53,11 +51,13 @@ type PostType = {
   images: string[];
   author: string;
   authorAvatar: string;
+  authorUuid: string;
   likeCount: number;
   collectCount: number;
   commentCount: number;
   likedByMe: boolean;
   collectedByMe: boolean;
+  followedByMe: boolean;
 };
 
 const PostDetailScreen = () => {
@@ -69,7 +69,9 @@ const PostDetailScreen = () => {
   const listRef = useRef<FlatList<CommentType>>(null);
   const [commentY, setCommentY] = useState(0);
   const [post, setPost] = useState<PostType | null>(null);
-  const [imageDimensions, setImageDimensions] = useState<{ width: number; height: number }[]>([]);
+  const [imageDimensions, setImageDimensions] = useState<
+    { width: number; height: number }[]
+  >([]);
   const [loading, setLoading] = useState(true);
 
   const [comments, setComments] = useState<CommentType[]>([]);
@@ -82,54 +84,67 @@ const PostDetailScreen = () => {
 
   const [isLiked, setIsLiked] = useState(false);
   const [isCollected, setIsCollected] = useState(false);
+  const [isFollowing, setIsFollowing] = useState(false);
 
-  // 获取帖子详情
+  /* ========== 1) 获取帖子详情（带关注状态） ========== */
   const fetchPostDetail = async () => {
+    setLoading(true);
     try {
-      const url = `${FULL_BASE_URL}/api/posts/${initialPost.uuid}` +
+      const url =
+        `${FULL_BASE_URL}/api/posts/${initialPost.uuid}` +
         `?userUuid=${profileData.uuid}`;
       const res = await fetch(url, { credentials: 'include' });
       const data = await res.json();
-      const processedImages = (data.images ?? []).map((img: { url: string }) =>
+
+      const processedImages = (data.images || []).map((img: { url: string }) =>
         img.url.startsWith('http') ? img.url : `${FULL_BASE_URL}${img.url}`
       );
+
       const newPost: PostType = {
         uuid: data.uuid,
         title: data.title,
         content: data.content,
         images: processedImages,
-        author: data.author?.nickname ?? '未知用户',
+        author: data.author?.nickname || '未知用户',
         authorAvatar: data.author?.profilePictureUrl
           ? `${FULL_BASE_URL}${data.author.profilePictureUrl}`
           : 'https://via.placeholder.com/200x200.png?text=No+Avatar',
+        authorUuid: data.author?.uuid,
         likeCount: data.likeCount ?? 0,
         collectCount: data.collectCount ?? 0,
         commentCount: data.commentCount ?? 0,
-        likedByMe: data.likedByMe ?? false,
-        collectedByMe: data.collectedByMe ?? false,
+        likedByMe: !!data.likedByMe,
+        collectedByMe: !!data.collectedByMe,
+        followedByMe:
+          data.followedByViewer ??
+          data.followedByMe ??
+          data.followedByCurrentUser ??
+          false,
       };
+
       setPost(newPost);
       setIsLiked(newPost.likedByMe);
       setIsCollected(newPost.collectedByMe);
-    } catch (error) {
-      console.error('[❌ Failed to fetch post detail]', error);
+      setIsFollowing(newPost.followedByMe);
+    } catch (err) {
+      console.error('[❌ fetchPostDetail]', err);
     } finally {
       setLoading(false);
     }
   };
 
-  // 获取评论列表
+  /* ========== 2) 获取评论 ========== */
   const fetchComments = async (pageNumber = 0) => {
     try {
       const sortParam = activeSort === '最新' ? 'LATEST' : 'HOT';
       const url =
         `${FULL_BASE_URL}/api/posts/${initialPost.uuid}/comments` +
-        `?sortType=${sortParam}` +
-        `&userUuid=${profileData.uuid}` +
+        `?sortType=${sortParam}&userUuid=${profileData.uuid}` +
         `&page=${pageNumber}&size=10`;
       const res = await fetch(url, { credentials: 'include' });
       const data = await res.json();
-      const newComments = (data.content ?? []).map((c: any) => ({
+
+      const newComments = (data.content || []).map((c: any) => ({
         id: c.uuid,
         authorUuid: c.author.uuid,
         user: c.author.nickname,
@@ -139,27 +154,102 @@ const PostDetailScreen = () => {
         content: c.content,
         time: new Date(c.createdAt).toLocaleString(),
         likes: c.likeCount,
-        liked: c.likedByCurrentUser ?? false,
+        liked: !!c.likedByCurrentUser,
       }));
+
       setComments(prev =>
         pageNumber === 0 ? newComments : [...prev, ...newComments]
       );
       setHasMore(!data.last);
-    } catch (error) {
-      console.error('[❌ Failed to fetch comments]', error);
+    } catch (err) {
+      console.error('[❌ fetchComments]', err);
     }
   };
 
-  useEffect(() => {
-    fetchPostDetail();
-  }, [initialPost.uuid]);
+  /* ========== 3) 关注 / 取消关注 ========== */
+  const toggleFollow = async () => {
+    if (!profileData?.uuid || !post) return;
+    try {
+      const endpoint =
+        `${FULL_BASE_URL}/api/user/follow` +
+        `?userUuid=${profileData.uuid}` +
+        `&targetUuid=${post.authorUuid}`;
 
-  useEffect(() => {
-    fetchComments(0);
-    setPage(0);
-  }, [initialPost.uuid, activeSort]);
+      const res = await fetch(endpoint, {
+        method: isFollowing ? 'DELETE' : 'POST',
+        credentials: 'include',
+      });
 
-  // 计算图片尺寸
+      if (res.ok) {
+        setIsFollowing(prev => !prev);
+        console.log(isFollowing ? '取消关注成功' : '关注成功');
+      } else {
+        Alert.alert(isFollowing ? '取消关注失败' : '关注失败');
+      }
+    } catch (err) {
+      console.error('[❌ toggleFollow]', err);
+    }
+  };
+
+  /* ========== 4) 点赞 / 收藏 ========== */
+  const toggleReaction = async (type: 'LIKE' | 'COLLECT') => {
+    if (!profileData?.uuid) return;
+    try {
+      const res = await fetch(
+        `${FULL_BASE_URL}/api/posts/${initialPost.uuid}/reactions`,
+        {
+          method: 'POST',
+          credentials: 'include',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ type, userUuid: profileData.uuid }),
+        }
+      );
+      const data = await res.json();
+      setPost(prev =>
+        prev
+          ? {
+              ...prev,
+              likeCount: data.likeCount,
+              collectCount: data.collectCount,
+              commentCount: data.commentCount,
+              likedByMe: data.likedByMe,
+              collectedByMe: data.collectedByMe,
+            }
+          : prev
+      );
+      setIsLiked(data.likedByMe);
+      setIsCollected(data.collectedByMe);
+    } catch (err) {
+      console.error(`[❌ toggle ${type}]`, err);
+    }
+  };
+
+  /* ========== 5) 删除评论 ========== */
+  const handleDeleteComment = (id: string) => {
+    Alert.alert('确认删除', '确定要删除这条评论吗？', [
+      { text: '取消', style: 'cancel' },
+      {
+        text: '删除',
+        style: 'destructive',
+        onPress: async () => {
+          try {
+            await fetch(
+              `${FULL_BASE_URL}/api/comments/${id}?userUuid=${profileData.uuid}`,
+              { method: 'DELETE', credentials: 'include' }
+            );
+            setComments(prev => prev.filter(c => c.id !== id));
+            setPost(prev =>
+              prev ? { ...prev, commentCount: prev.commentCount - 1 } : prev
+            );
+          } catch (err) {
+            console.error('[❌ deleteComment]', err);
+          }
+        },
+      },
+    ]);
+  };
+
+  /* ========== 6) 计算图片尺寸 ========== */
   useEffect(() => {
     if (!post?.images?.length) return;
     (async () => {
@@ -179,6 +269,16 @@ const PostDetailScreen = () => {
     })();
   }, [post?.images]);
 
+  /* ========== 7) 初次加载 & 依赖变化 ========== */
+  useEffect(() => {
+    fetchPostDetail();
+  }, [initialPost.uuid]);
+
+  useEffect(() => {
+    fetchComments(0);
+    setPage(0);
+  }, [initialPost.uuid, activeSort]);
+
   const onRefresh = async () => {
     setRefreshing(true);
     await fetchPostDetail();
@@ -193,70 +293,18 @@ const PostDetailScreen = () => {
     fetchComments(next);
   };
 
-  // 切换帖子点赞/收藏
-  const toggleReaction = async (type: 'LIKE' | 'COLLECT') => {
-    if (!profileData?.uuid) {
-      console.warn('未登录，无法执行操作');
-      return;
-    }
-    try {
-      const url = `${FULL_BASE_URL}/api/posts/${initialPost.uuid}/reactions`;
-      const res = await fetch(url, {
-        method: 'POST',
-        credentials: 'include',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ type, userUuid: profileData.uuid }),
-      });
-      const data = await res.json();
-      setPost(prev => prev && ({
-        ...prev,
-        likeCount: data.likeCount,
-        collectCount: data.collectCount,
-        commentCount: data.commentCount,
-        likedByMe: data.likedByMe,
-        collectedByMe: data.collectedByMe,
-      }));
-      setIsLiked(data.likedByMe);
-      setIsCollected(data.collectedByMe);
-    } catch (error) {
-      console.error(`[❌ Failed to toggle ${type}]`, error);
-    }
-  };
-
-  const scrollToComments = () =>
+  const scrollToComments = () => {
     listRef.current?.scrollToOffset({ offset: commentY, animated: true });
-
-  // 删除评论
-  const handleDeleteComment = (commentId: string) => {
-    Alert.alert('确认删除', '确定要删除这条评论吗？', [
-      { text: '取消', style: 'cancel' },
-      {
-        text: '删除',
-        style: 'destructive',
-        onPress: async () => {
-          try {
-            const url = `${FULL_BASE_URL}/api/comments/${commentId}` +
-                        `?userUuid=${profileData.uuid}`;
-            await fetch(url, {
-              method: 'DELETE',
-              credentials: 'include',
-            });
-            setComments(prev => prev.filter(c => c.id !== commentId));
-            setPost(prev => prev && ({
-              ...prev,
-              commentCount: Math.max(0, prev.commentCount - 1),
-            }));
-          } catch (error) {
-            console.error('[❌ Failed to delete comment]', error);
-          }
-        },
-      },
-    ]);
   };
 
   if (loading || !post) {
     return (
-      <View style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}>
+      <View
+        style={[
+          styles.container,
+          { justifyContent: 'center', alignItems: 'center' },
+        ]}
+      >
         <ActivityIndicator size="large" color="#d81e06" />
         <Text style={{ marginTop: 12, color: '#666' }}>加载帖子详情中...</Text>
       </View>
@@ -270,7 +318,7 @@ const PostDetailScreen = () => {
         ref={listRef}
         ListHeaderComponent={
           <>
-            {/* 顶部导航和作者信息 */}
+            {/* 顶部导航 + 作者信息 */}
             <View style={styles.topBar}>
               <TouchableOpacity onPress={() => navigation.goBack()}>
                 <Ionicons name="chevron-back" size={24} />
@@ -281,8 +329,15 @@ const PostDetailScreen = () => {
                 resizeMode={FastImage.resizeMode.cover}
               />
               <Text style={styles.authorName}>{post.author}</Text>
-              <TouchableOpacity style={styles.followBtn}>
-                <Text style={styles.followText}>关注</Text>
+              <TouchableOpacity
+                style={isFollowing ? styles.unfollowBtn : styles.followBtn}
+                onPress={toggleFollow}
+              >
+                <Text
+                  style={isFollowing ? styles.unfollowText : styles.followText}
+                >
+                  {isFollowing ? '取消关注' : '关注'}
+                </Text>
               </TouchableOpacity>
             </View>
 
@@ -310,35 +365,35 @@ const PostDetailScreen = () => {
               )}
             />
 
-            {/* 标题和正文 */}
+            {/* 标题 & 正文 */}
             <View style={styles.contentContainer}>
               <Text style={styles.title}>{post.title}</Text>
               <Text style={styles.body}>{post.content || '暂无内容'}</Text>
             </View>
 
-            {/* 评论区标题和排序 */}
+            {/* 评论区头部 */}
             <View
               onLayout={e => setCommentY(e.nativeEvent.layout.y)}
               style={styles.commentHeader}
             >
               <Text style={styles.commentHeaderText}>全部评论</Text>
               <View style={styles.commentTabs}>
-                {(['最新', '最热'] as SortType[]).map(type => (
+                {(['最新', '最热'] as SortType[]).map(t => (
                   <TouchableOpacity
-                    key={type}
-                    onPress={() => setActiveSort(type)}
+                    key={t}
+                    onPress={() => setActiveSort(t)}
                     style={[
                       styles.commentTab,
-                      activeSort === type && styles.activeCommentTab,
+                      activeSort === t && styles.activeCommentTab,
                     ]}
                   >
                     <Text
                       style={[
                         styles.commentTabText,
-                        activeSort === type && styles.activeCommentTabText,
+                        activeSort === t && styles.activeCommentTabText,
                       ]}
                     >
-                      {type}
+                      {t}
                     </Text>
                   </TouchableOpacity>
                 ))}
@@ -347,7 +402,7 @@ const PostDetailScreen = () => {
           </>
         }
         data={comments}
-        keyExtractor={item => item.id}  
+        keyExtractor={item => item.id}
         renderItem={({ item }) => (
           <View style={styles.commentItem}>
             <FastImage
@@ -359,18 +414,16 @@ const PostDetailScreen = () => {
               <View style={styles.commentTopRow}>
                 <Text style={styles.commentUser}>{item.user}</Text>
                 <View style={styles.commentActions}>
-                  {/* 点赞按钮 */}
                   <TouchableOpacity
                     style={styles.likeButton}
                     onPress={async () => {
                       if (!profileData?.uuid) return;
                       try {
-                        const url = `${FULL_BASE_URL}/api/comments/${item.id}/likes` +
-                                    `?userUuid=${profileData.uuid}`;
-                        const res = await fetch(url, {
-                          method: 'POST',
-                          credentials: 'include',
-                        });
+                        const res = await fetch(
+                          `${FULL_BASE_URL}/api/comments/${item.id}/likes` +
+                            `?userUuid=${profileData.uuid}`,
+                          { method: 'POST', credentials: 'include' }
+                        );
                         const updated: any = await res.json();
                         setComments(prev =>
                           prev.map(c =>
@@ -402,7 +455,6 @@ const PostDetailScreen = () => {
                       {item.likes}
                     </Text>
                   </TouchableOpacity>
-                  {/* 删除按钮，仅作者可见 */}
                   {profileData?.uuid === item.authorUuid && (
                     <TouchableOpacity
                       onPress={() => handleDeleteComment(item.id)}
@@ -502,13 +554,13 @@ const PostDetailScreen = () => {
                 styles.submitButton,
                 !commentText.trim() && styles.disabledButton,
               ]}
+              disabled={!commentText.trim()}
               onPress={async () => {
-                if (!commentText.trim()) return;
+                const payload = {
+                  content: commentText.trim(),
+                  authorUuid: profileData?.uuid,
+                };
                 try {
-                  const payload = {
-                    content: commentText.trim(),
-                    authorUuid: profileData?.uuid ?? null,
-                  };
                   const res = await fetch(
                     `${FULL_BASE_URL}/api/posts/${initialPost.uuid}/comments`,
                     {
@@ -529,7 +581,7 @@ const PostDetailScreen = () => {
                     content: data.content,
                     time: new Date(data.createdAt).toLocaleString(),
                     likes: 0,
-                    liked: data.likedByCurrentUser ?? false,
+                    liked: false,
                   };
                   setComments(prev => [newComment, ...prev]);
                   setCommentText('');
@@ -539,11 +591,10 @@ const PostDetailScreen = () => {
                       ? { ...prev, commentCount: prev.commentCount + 1 }
                       : prev
                   );
-                } catch (error) {
-                  console.error('[❌ Failed to add comment]', error);
+                } catch (err) {
+                  console.error('[❌ addComment]', err);
                 }
               }}
-              disabled={!commentText.trim()}
             >
               <Text style={styles.submitButtonText}>发布</Text>
             </TouchableOpacity>
