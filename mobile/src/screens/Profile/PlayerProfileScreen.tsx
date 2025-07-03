@@ -1,188 +1,110 @@
-import React, { useEffect, useState } from 'react';
-import {
-  View,
-  Text,
-  TouchableOpacity,
-  SafeAreaView,
-  FlatList,
-} from 'react-native';
+// PlayerProfileScreen.tsx
+import React from 'react';
+import { View, Text, TouchableOpacity, ScrollView, Image, FlatList, Dimensions } from 'react-native';
 import Ionicons from 'react-native-vector-icons/Ionicons';
-import FastImage from 'react-native-fast-image';
-import { useNavigation } from '@react-navigation/native';
-import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { styles } from '../../theme/PlayerProfileScreen.styles';
-import { useUserProfile } from '../../contexts/UserProfileContext';
 
-export type RootStackParamList = {
-  Dashboard: undefined;
-  SeatOverview: undefined;
-  Discover: undefined;
-  PlayerProfile: { userId?: string } | undefined;
-};
+const { width } = Dimensions.get('window');
 
-type Nav = NativeStackNavigationProp<RootStackParamList>;
+const mockPinnedPhotos = [
+  { id: '1', uri: 'https://picsum.photos/400/400?1' },
+  { id: '2', uri: 'https://picsum.photos/400/400?2' },
+  { id: '3', uri: 'https://picsum.photos/400/400?3' },
+    { id: '4', uri: 'https://picsum.photos/400/400?3' },
+      { id: '5', uri: 'https://picsum.photos/400/400?3' },
+];
 
-const FULL_BASE_URL = 'http://10.0.2.2:8080';
+const mockPosts = [
+  { id: 'p1', title: 'Post Title One', time: '2 hours ago', image: 'https://picsum.photos/800/400?1', ongoing: true, popular: false },
+  { id: 'p2', title: 'Post Title Two', time: 'Yesterday', image: 'https://picsum.photos/800/400?2', ongoing: false, popular: true },
+];
 
 export default function PlayerProfileScreen() {
-  const navigation = useNavigation<Nav>();
-  const { profileData } = useUserProfile();
-  const [userData, setUserData] = useState<any>(null);
-
-  useEffect(() => {
-    const fetchProfile = async () => {
-      if (!profileData?.uuid) {
-        console.warn('[FetchProfile] No UUID available, skipping fetch.');
-        return;
-      }
-
-      const fullUrl = `${FULL_BASE_URL}/api/user/profile?userUuid=${profileData.uuid}`;
-      console.log('[FetchProfile] Fetching profile for UUID:', profileData.uuid);
-      console.log('[FetchProfile] URL:', fullUrl);
-
-      try {
-        const response = await fetch(fullUrl);
-        console.log('[FetchProfile] Response status:', response.status);
-
-        if (!response.ok) {
-          throw new Error(`Request failed with status ${response.status}`);
-        }
-
-        const data = await response.json();
-        console.log('[FetchProfile] Received data:', data);
-        if (!data) throw new Error('Backend returned empty data');
-
-        setUserData(data);
-      } catch (err) {
-        console.error('[FetchProfile] Failed to load user profile:', err);
-        setUserData(null);
-      }
-    };
-
-    fetchProfile();
-  }, [profileData?.uuid]);
-
   return (
-    <SafeAreaView style={styles.container}>
-      {/* Top Bar */}
-      <View style={styles.topBar}>
-        <TouchableOpacity onPress={() => navigation.goBack()}>
-          <Ionicons name="chevron-back" size={24} color="#fff" />
-        </TouchableOpacity>
+    <View style={{ flex: 1, backgroundColor: '#fff' }}>
+      {/* Identity Section */}
+      <View style={{ flexDirection: 'row', alignItems: 'center', padding: 16 }}>
         <TouchableOpacity>
-          <Ionicons name="settings-outline" size={22} color="#fff" />
+          <Image
+            source={{ uri: 'https://picsum.photos/200' }}
+            style={{ width: 80, height: 80, borderRadius: 40, borderWidth: 2, borderColor: '#fff' }}
+          />
+        </TouchableOpacity>
+        <View style={{ marginLeft: 16 }}>
+          <Text style={{ fontSize: 18, fontWeight: 'bold' }}>Username</Text>
+          <TouchableOpacity>
+            <Text style={{ color: '#888' }}>ID: user12345</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+
+      {/* Data Dashboard */}
+      <View style={{ flexDirection: 'row', justifyContent: 'space-around', paddingVertical: 12 }}>
+        <TouchableOpacity style={{ alignItems: 'center' }}>
+          <Text style={{ fontSize: 18, fontWeight: 'bold' }}>150</Text>
+          <Text style={{ color: '#888' }}>Followers</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={{ alignItems: 'center' }}>
+          <Text style={{ fontSize: 18, fontWeight: 'bold' }}>180</Text>
+          <Text style={{ color: '#888' }}>Following</Text>
         </TouchableOpacity>
       </View>
 
-      {userData ? (
-        <View style={styles.profileHeader}>
-          <FastImage
-            source={{
-              uri: userData.profilePictureUrl
-                ? FULL_BASE_URL + userData.profilePictureUrl
-                : 'https://via.placeholder.com/200x200.png?text=No+Avatar',
-            }}
-            style={styles.avatar}
-            onError={() =>
-              console.error('[Avatar] Failed to load avatar:')
-            }
-            resizeMode={FastImage.resizeMode.cover}
-          />
-          <Text style={styles.nickname}>
-            {userData.nickname ?? 'Unnamed User'}
-          </Text>
-          <Text style={styles.userId}>Age: {userData.age ?? 'N/A'} yrs</Text>
+      {/* Pinned Album */}
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ paddingHorizontal: 16 }}>
+        {mockPinnedPhotos.map(photo => (
+          <TouchableOpacity key={photo.id} style={{ marginRight: 12 }}>
+            <Image
+              source={{ uri: photo.uri }}
+              style={{ width: 100, height: 100, borderRadius: 8 }}
+            />
+          </TouchableOpacity>
+        ))}
+      </ScrollView>
 
-          {userData.city?.name && (
-            <Text style={styles.userId}>From: {userData.city.name}</Text>
-          )}
-          {userData.gender?.text && (
-            <Text style={styles.userId}>Gender: {userData.gender.text}</Text>
-          )}
+      {/* Post Feed */}
+      <FlatList
+        data={mockPosts}
+        keyExtractor={item => item.id}
+        renderItem={({ item }) => (
+          <TouchableOpacity style={{ margin: 16, backgroundColor: '#f9f9f9', borderRadius: 8, overflow: 'hidden' }}>
+            <Image source={{ uri: item.image }} style={{ width: '100%', height: 200 }} />
+            <View style={{ padding: 12 }}>
+              <Text style={{ fontWeight: 'bold', fontSize: 16 }}>{item.title}</Text>
+              <Text style={{ color: '#888', marginTop: 4 }}>{item.time}</Text>
+              {item.ongoing && (
+                <View style={{ position: 'absolute', top: 12, right: 12, backgroundColor: '#555', borderRadius: 4, paddingHorizontal: 6, paddingVertical: 2 }}>
+                  <Text style={{ color: '#fff', fontSize: 12 }}>Ongoing</Text>
+                </View>
+              )}
+              {item.popular && (
+                <View style={{ position: 'absolute', top: 12, right: 12, backgroundColor: '#f33', borderRadius: 4, paddingHorizontal: 6, paddingVertical: 2 }}>
+                  <Text style={{ color: '#fff', fontSize: 12 }}>🔥 Popular</Text>
+                </View>
+              )}
+            </View>
+          </TouchableOpacity>
+        )}
+      />
 
-          {Array.isArray(userData.genderPreferences) &&
-            userData.genderPreferences.length > 0 && (
-              <Text style={styles.userId}>
-                Seeks:{' '}
-                {userData.genderPreferences.map((g: any) => g.text).join(' / ')}
-              </Text>
-            )}
-
-          <Text style={styles.bio}>
-            {userData.bio ?? 'No bio available.'}
-          </Text>
-
-          {Array.isArray(userData.interests) &&
-            userData.interests.length > 0 && (
-              <View style={styles.tags}>
-                {userData.interests.map((int: any) => (
-                  <Text key={int.id} style={styles.tag}>
-                    #{int.name}
-                  </Text>
-                ))}
-              </View>
-            )}
-
-          {Array.isArray(userData.albumUrls) &&
-            userData.albumUrls.length > 0 && (
-              <FlatList
-                data={userData.albumUrls}
-                keyExtractor={(item, index) => `${item}-${index}`}
-                horizontal
-                showsHorizontalScrollIndicator={false}
-                renderItem={({ item, index }) => {
-                  const imageUri = FULL_BASE_URL + item;
-                  console.log('[Album] Rendering image:', imageUri);
-
-                  return (
-                    <FastImage
-                      key={`${item}-${index}`}
-                      source={{ uri: imageUri }}
-                      style={styles.photoItem}
-                      onError={() =>
-                        console.error(
-                          '[Album] Failed to load image:',
-                          imageUri
-                        )
-                      }
-                      resizeMode={FastImage.resizeMode.cover}
-                    />
-                  );
-                }}
-              />
-            )}
-
-          <Text style={styles.userId}>
-            Likes Received: {userData.totalLikesReceived}
-          </Text>
-
-          {Array.isArray(userData.preferredVenues) &&
-            userData.preferredVenues.length > 0 && (
-              <Text style={styles.userId}>
-                Venues:{' '}
-                {userData.preferredVenues.map((v: any) => v.name).join(' / ')}
-              </Text>
-            )}
-
-          {userData.dates?.createdAt && (
-            <Text style={styles.userId}>
-              Joined:{' '}
-              {new Date(userData.dates.createdAt).toLocaleDateString()}
-            </Text>
-          )}
-
-          {userData.dates?.lastActiveAt && (
-            <Text style={styles.userId}>
-              Last Active:{' '}
-              {new Date(userData.dates.lastActiveAt).toLocaleDateString()}
-            </Text>
-          )}
-        </View>
-      ) : (
-        <View style={styles.loadingContainer}>
-          <Text>Loading user profile...</Text>
-        </View>
-      )}
-    </SafeAreaView>
+      {/* Bottom Navigation */}
+      <View style={{ flexDirection: 'row', justifyContent: 'space-around', paddingVertical: 8, borderTopWidth: 1, borderColor: '#eee' }}>
+        <TouchableOpacity style={{ alignItems: 'center' }}>
+          <Ionicons name='heart-outline' size={24} color={'#222'} />
+          <Text style={{ fontSize: 12 }}>Match</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={{ alignItems: 'center' }}>
+          <Ionicons name='chatbubbles-outline' size={24} color={'#222'} />
+          <Text style={{ fontSize: 12 }}>Chat</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={{ alignItems: 'center' }}>
+          <Ionicons name='apps-outline' size={24} color={'#222'} />
+          <Text style={{ fontSize: 12 }}>Square</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={{ alignItems: 'center' }}>
+          <Ionicons name='person-outline' size={24} color={'#d81e06'} />
+          <Text style={{ fontSize: 12, color: '#d81e06' }}>Me</Text>
+        </TouchableOpacity>
+      </View>
+    </View>
   );
 }
