@@ -13,10 +13,16 @@ import java.util.stream.Collectors;
 @Mapper(componentModel = "spring")
 public interface PostMapper {
 
-    /** 作者映射：User → UserSummaryDto */
+    /** 作者映射：User → UserSummaryDto (用于PostSummaryDto) */
     @Mapping(target = "profilePictureUrl",
             expression = "java(author.getProfilePicture() != null ? \"/api/media/profile/\" + author.getProfilePicture().getUuid() : null)")
+    @Named("toUserSummaryForPost")
     UserSummaryDto toAuthorDto(com.zusa.backend.entity.User author);
+
+    /** 作者映射：User → AuthorSummaryDto (用于PostDetailDto) */
+    @Mapping(target = "profilePictureUrl",
+            expression = "java(author.getProfilePicture() != null ? \"/api/media/profile/\" + author.getProfilePicture().getUuid() : null)")
+    AuthorSummaryDto toAuthorSummaryDto(com.zusa.backend.entity.User author);
 
     /** 帖子图片映射：PostImage → PostImageDto */
     @Mapping(target = "url", source = "img.url")
@@ -24,7 +30,7 @@ public interface PostMapper {
     PostImageDto toImageDto(PostImage img);
 
     /** 帖子摘要映射：Post → PostSummaryDto */
-    @Mapping(target = "author", source = "post.author")
+    @Mapping(target = "author", source = "post.author", qualifiedByName = "toUserSummaryForPost")
     @Mapping(target = "tags", ignore = true)    // ServiceImpl 中手动填充
     @Mapping(target = "likedByCurrentUser", ignore = true)
     @Mapping(target = "collectedByCurrentUser", ignore = true)
@@ -33,7 +39,7 @@ public interface PostMapper {
 
     /** 帖子详情映射：Post → PostDetailDto */
     @Mapping(target = "author", source = "post.author")
-    @Mapping(target = "images", source = "post.images")   // ServiceImpl 可覆盖或直接使用此映射
+    @Mapping(target = "images", source = "post.images")
     @Mapping(target = "tags", ignore = true)              // ServiceImpl 中手动填充
     @Mapping(target = "likedByCurrentUser", ignore = true)
     @Mapping(target = "collectedByCurrentUser", ignore = true)

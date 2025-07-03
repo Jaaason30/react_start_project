@@ -117,6 +117,8 @@ public class PostServiceImpl implements PostService {
     }
 
     // ========== 4) 详情 ==========
+// 在 PostServiceImpl.java 的 getDetail 方法中，更新映射author的部分：
+
     @Override
     @Transactional(readOnly = true)
     public PostDetailDto getDetail(UUID postUuid, UUID currentUserUuid) {
@@ -124,8 +126,20 @@ public class PostServiceImpl implements PostService {
         Post post = postRepo.findDetailByUuid(postUuid)
                 .orElseThrow(() -> new EntityNotFoundException("Post not found"));
 
-        // 2) MapStruct 转 DTO（忽略 reactions/tags/images/followed）
+        // 2) MapStruct 转 DTO
         PostDetailDto dto = mapper.toDetail(post);
+
+        // 2.5) 手动映射 author 到 AuthorSummaryDto
+        AuthorSummaryDto authorDto = new AuthorSummaryDto();
+        authorDto.setUuid(post.getAuthor().getUuid());
+        authorDto.setNickname(post.getAuthor().getNickname());
+        authorDto.setShortId(post.getAuthor().getShortId());
+        authorDto.setProfilePictureUrl(
+                post.getAuthor().getProfilePicture() != null
+                        ? "/api/media/profile/" + post.getAuthor().getProfilePicture().getUuid()
+                        : null
+        );
+        dto.setAuthor(authorDto);
 
         // 3) 填充 images
         List<PostImageDto> imgs = post.getImages().stream()
@@ -271,5 +285,17 @@ public class PostServiceImpl implements PostService {
                 return tagRepo.findByName(name).orElseThrow(() -> e);
             }
         });
+    }
+
+
+    @Override
+    @Transactional(readOnly = true)
+    public Page<PostSummaryDto> listByAuthor(UUID authorUuid, UUID me, Pageable pageable) {
+        if (pageable.getSort().isUnsorted()) {
+            pageable = PageRequest.of(pageable.getPageNumber(), pageable.getPageSize(),
+                    Sort.Direction.DESC, "createdAt");
+        }
+        Page<Post> page = postRepo.findByAuthor_UuidOrderByCreatedAtDesc(authorUuid, pageable);
+        return toSummaryPage(page, me);
     }
 }

@@ -1,3 +1,4 @@
+// src/main/java/com/zusa/backend/entity/User.java
 package com.zusa.backend.entity;
 
 import com.zusa.backend.entity.user.*;
@@ -10,12 +11,22 @@ import java.util.*;
 
 @Entity
 @Table(name = "users")
-@Getter @Setter @NoArgsConstructor @AllArgsConstructor @Builder
+@Getter
+@Setter
+@NoArgsConstructor
+@AllArgsConstructor
+@Builder
 public class User {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
+
+    /**
+     * 短 ID，公开给前端的数字标识
+     */
+    @Column(name = "short_id", unique = true)
+    private Long shortId;
 
     /** 对外安全 UUID */
     @Builder.Default
@@ -26,7 +37,7 @@ public class User {
     @Column(nullable = false, unique = true, length = 120)
     private String email;
 
-    /** 密码（记得返回给前端时要掩码掉） */
+    /** 密码（返回时掩码） */
     @JsonIgnore
     @Column(nullable = false)
     private String password;
@@ -38,56 +49,61 @@ public class User {
     @Column(length = 255)
     private String bio;
 
-    /** 出生日期（用于计算年龄） */
+    /** 出生日期 */
     private LocalDate dateOfBirth;
 
-    /** 头像，一对一拥有端 */
-    @OneToOne(cascade = {CascadeType.PERSIST, CascadeType.MERGE}, orphanRemoval = true, fetch = FetchType.LAZY)
+    /** 头像 */
+    @OneToOne(cascade = {CascadeType.PERSIST, CascadeType.MERGE},
+            orphanRemoval = true, fetch = FetchType.LAZY)
     @JoinColumn(name = "profile_picture_id")
     private UserProfilePicture profilePicture;
 
-    /** 相册，一对多 */
-    @OneToMany(mappedBy = "user",           // <-- 只写 mappedBy
+    /** 相册 */
+    @OneToMany(mappedBy = "user",
             cascade = CascadeType.ALL,
             orphanRemoval = true,
             fetch = FetchType.LAZY)
     private List<UserPhoto> albumPhotos = new ArrayList<>();
 
-    /** 创建/活跃时间，一对一拥有端 */
-    @OneToOne(cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
+    /** 活跃时间 */
+    @OneToOne(cascade = CascadeType.ALL,
+            orphanRemoval = true, fetch = FetchType.LAZY)
     @JoinColumn(name = "dates_id")
     @Builder.Default
     private UserDates dates = new UserDates();
 
-    /** 性别（自身） */
+    /** 性别 */
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "gender_id")
     private Gender gender;
 
-    /** 想认识的性别（交友意向） */
+    /** 交友意向性别 */
     @ManyToMany
     @JoinTable(name = "user_gender_pref",
             joinColumns = @JoinColumn(name = "user_id"),
             inverseJoinColumns = @JoinColumn(name = "gender_id"))
     private List<Gender> genderPreferences = new ArrayList<>();
 
-    /**城市**/
+    /** 城市 */
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "city_id")
     private City city;
-    /** 兴趣（多对多） */
+
+    /** 兴趣 */
     @ManyToMany
     @JoinTable(name = "user_interest",
             joinColumns = @JoinColumn(name = "user_id"),
             inverseJoinColumns = @JoinColumn(name = "interest_id"))
     private List<Interest> interests = new ArrayList<>();
 
-    /** 偏好场所（多对多） */
+    /** 场所偏好 */
     @ManyToMany
     @JoinTable(name = "user_venue",
             joinColumns = @JoinColumn(name = "user_id"),
             inverseJoinColumns = @JoinColumn(name = "venue_id"))
     private List<Venue> preferredVenues = new ArrayList<>();
+
+    /** 粉丝 / 关注 */
     @ManyToMany
     @JoinTable(
             name = "user_follow",
@@ -104,28 +120,20 @@ public class User {
     @Builder.Default
     private int likes = 0;
 
-    /** 简单 “年龄” 计算 */
+    /** 计算年龄 */
     public int getAge() {
         return dateOfBirth == null
                 ? 0
                 : LocalDate.now().getYear() - dateOfBirth.getYear();
     }
+
     @PostLoad
     @PostPersist
     @PostUpdate
     private void initCollectionsIfNull() {
-        if (genderPreferences == null) {
-            genderPreferences = new ArrayList<>();
-        }
-        if (interests == null) {
-            interests = new ArrayList<>();
-        }
-        if (preferredVenues == null) {
-            preferredVenues = new ArrayList<>();
-        }
-        if (albumPhotos == null) {
-            albumPhotos = new ArrayList<>();
-        }
+        if (genderPreferences == null) genderPreferences = new ArrayList<>();
+        if (interests == null) interests = new ArrayList<>();
+        if (preferredVenues == null) preferredVenues = new ArrayList<>();
+        if (albumPhotos == null) albumPhotos = new ArrayList<>();
     }
-
 }

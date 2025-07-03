@@ -61,29 +61,26 @@ export default function SearchScreen() {
   }, []);
 
   /* ---------------- 搜索函数 ---------------- */
-  const handleSearch = useCallback(
-    async (kw?: string, hideTags = false) => {
-      const keyword = (kw ?? query).trim();
-      if (!keyword) return;
+const handleSearch = useCallback(
+  async (kw?: string, hideTags = false) => {
+    const keyword = (kw ?? query).trim();
+    if (!keyword) return;
 
-      if (hideTags) setShowTags(false);                  // ✅ 搜索时可隐藏标签
-      setLoading(true);
-      setResults([]);
+    if (hideTags) setShowTags(false);
+    setLoading(true);
+    setResults([]);
 
-      try {
-        const res = await fetch(
-          `${FULL_BASE_URL}/api/posts/search?kw=${encodeURIComponent(keyword)}`
-        );
-        const page = await res.json();
-        setResults(page.content ?? []);
-      } catch (err) {
-        console.error(err);
-      } finally {
-        setLoading(false);
-      }
-    },
-    [query]
-  );
+    // ① 这里多加了 shortId 参数
+    const res = await fetch(
+      `${FULL_BASE_URL}/api/posts/search?kw=${encodeURIComponent(keyword)}&shortId=${encodeURIComponent(keyword)}`
+    );
+    const page = await res.json();
+    setResults(page.content ?? []);
+    setLoading(false);
+  },
+  [query]
+);
+
 
   const onTagPress = (tag: TagItem) => {
     setQuery(tag.name);

@@ -1,3 +1,4 @@
+// src/main/java/com/zusa/backend/dto/user/UserDto.java
 package com.zusa.backend.dto.user;
 
 import lombok.Data;
@@ -8,8 +9,11 @@ import java.util.UUID;
 
 @Data
 public class UserDto {
-    /* ------- 基本信息 ------- */
+    /* ------- 短 ID & UUID ------- */
+    private Long shortId;
     private UUID uuid;
+
+    /* ------- 基本信息 ------- */
     private String email;
     private String nickname;
     private String bio;
@@ -21,10 +25,10 @@ public class UserDto {
     private Long cityId;
 
     /* ------- 性别 ------- */
-    private GenderDto gender;                // 返回
-    private Long genderId;                   // 更新
-    private List<GenderDto> genderPreferences; // 返回
-    private List<Long> genderPreferenceIds;     // 更新
+    private GenderDto gender;
+    private Long genderId;
+    private List<GenderDto> genderPreferences;
+    private List<Long> genderPreferenceIds;
 
     /* ------- 头像 / 相册 ------- */
     private String profilePictureUrl;
@@ -47,5 +51,4 @@ public class UserDto {
     private long followingCount;
     private List<UserSummaryDto> followers;
     private List<UserSummaryDto> following;
-
 }

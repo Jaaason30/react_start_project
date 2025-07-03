@@ -55,9 +55,9 @@ type PostType = {
   likeCount: number;
   collectCount: number;
   commentCount: number;
-  likedByMe: boolean;
-  collectedByMe: boolean;
-  followedByMe: boolean;
+  likedByCurrentUser: boolean;
+  collectedByCurrentUser: boolean;
+  followedByCurrentUser: boolean;
 };
 
 const PostDetailScreen = () => {
@@ -113,19 +113,19 @@ const PostDetailScreen = () => {
         likeCount: data.likeCount ?? 0,
         collectCount: data.collectCount ?? 0,
         commentCount: data.commentCount ?? 0,
-        likedByMe: !!data.likedByMe,
-        collectedByMe: !!data.collectedByMe,
-        followedByMe:
+        likedByCurrentUser: !!data.likedByCurrentUser,
+        collectedByCurrentUser: !!data.collectedByCurrentUser,
+        followedByCurrentUser:
           data.followedByViewer ??
-          data.followedByMe ??
+          
           data.followedByCurrentUser ??
           false,
       };
 
       setPost(newPost);
-      setIsLiked(newPost.likedByMe);
-      setIsCollected(newPost.collectedByMe);
-      setIsFollowing(newPost.followedByMe);
+      setIsLiked(newPost.likedByCurrentUser);
+      setIsCollected(newPost.collectedByCurrentUser);
+      setIsFollowing(newPost.followedByCurrentUser);
     } catch (err) {
       console.error('[❌ fetchPostDetail]', err);
     } finally {
@@ -204,7 +204,9 @@ const PostDetailScreen = () => {
           body: JSON.stringify({ type, userUuid: profileData.uuid }),
         }
       );
+      console.log(`[toggleReaction ${type}] status:`, res.status); // 新增日志
       const data = await res.json();
+      console.log(`[toggleReaction ${type}] response:`, data); // 新增日志
       setPost(prev =>
         prev
           ? {
@@ -212,13 +214,13 @@ const PostDetailScreen = () => {
               likeCount: data.likeCount,
               collectCount: data.collectCount,
               commentCount: data.commentCount,
-              likedByMe: data.likedByMe,
-              collectedByMe: data.collectedByMe,
+              likedByCurrentUser: data.likedByCurrentUser,
+              collectedByCurrentUser: data.collectedByCurrentUser,
             }
           : prev
       );
-      setIsLiked(data.likedByMe);
-      setIsCollected(data.collectedByMe);
+      setIsLiked(data.likedByCurrentUser);
+      setIsCollected(data.collectedByCurrentUser);
     } catch (err) {
       console.error(`[❌ toggle ${type}]`, err);
     }

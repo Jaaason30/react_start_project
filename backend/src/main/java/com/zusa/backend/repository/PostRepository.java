@@ -1,3 +1,4 @@
+// src/main/java/com/zusa/backend/repository/PostRepository.java
 package com.zusa.backend.repository;
 
 import com.zusa.backend.entity.post.Post;
@@ -44,7 +45,7 @@ public interface PostRepository
     @QueryHints(@QueryHint(name = "jakarta.persistence.passDistinctThrough", value = "false"))
     Optional<Post> findByUuid(UUID uuid);
 
-    /* ========== 7) 全文搜索（标题 / 内容 / 作者昵称 / 标签） ========== */
+    /* ========== 7) 全文搜索（标题 / 内容 / 作者昵称 / 作者shortId / 标签） ========== */
     @EntityGraph(attributePaths = {"author"})
     @QueryHints(@QueryHint(name = "jakarta.persistence.passDistinctThrough", value = "false"))
     @Query("""
@@ -52,9 +53,10 @@ public interface PostRepository
           from Post p
           left join p.tags t
          where lower(p.title) like lower(concat('%', :kw, '%'))
-            or p.content       like concat('%', :kw, '%')
+            or p.content like concat('%', :kw, '%')
             or lower(p.author.nickname) like lower(concat('%', :kw, '%'))
-            or lower(t.name)   like lower(concat('%', :kw, '%'))
+            or cast(p.author.shortId as string) like concat('%', :kw, '%')
+            or lower(t.name) like lower(concat('%', :kw, '%'))
          order by p.createdAt desc
     """)
     Page<Post> searchByKeyword(@Param("kw") String keyword, Pageable pageable);

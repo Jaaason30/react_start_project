@@ -1,110 +1,190 @@
-// PlayerProfileScreen.tsx
-import React from 'react';
-import { View, Text, TouchableOpacity, ScrollView, Image, FlatList, Dimensions } from 'react-native';
+// src/screens/PlayerProfileScreen.tsx
+
+import React, { useEffect, useState } from 'react';
+import {
+  View,
+  Text,
+  TouchableOpacity,
+  SafeAreaView,
+  ScrollView,
+  Image,
+  FlatList,
+  Dimensions,
+  ActivityIndicator,
+} from 'react-native';
 import Ionicons from 'react-native-vector-icons/Ionicons';
+import FastImage from 'react-native-fast-image';
+import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
+import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import { useUserProfile } from '../../contexts/UserProfileContext';
+import { styles } from '../../theme/PlayerProfileScreen.styles';
 
 const { width } = Dimensions.get('window');
+const FULL_BASE_URL = 'http://10.0.2.2:8080';
+const BOTTOM_TABS = [
+  { key: 'match',  label: '匹配', icon: 'heart-outline',       screen: 'Dashboard' },
+  { key: 'chat',   label: '聊天', icon: 'chatbubbles-outline', screen: 'SeatOverview' },
+  { key: 'square', label: '广场', icon: 'apps-outline',        screen: 'Discover' },
+  { key: 'me',     label: '我的', icon: 'person-outline',      screen: 'PlayerProfile' },
+] as const;
+type RootStackParamList = {
+  Login: undefined;
+  Register: undefined;
+  Dashboard: undefined;
+  SeatOverview: undefined;
+  SeatPage: { seatId: string };
+  Discover: undefined;
+  Search: undefined;
+  PlayerProfile: { userId?: string };
+  PostCreation: undefined;
+  CertifiedPromotions: undefined;
+  PostDetail: { post: any };
+};
 
-const mockPinnedPhotos = [
-  { id: '1', uri: 'https://picsum.photos/400/400?1' },
-  { id: '2', uri: 'https://picsum.photos/400/400?2' },
-  { id: '3', uri: 'https://picsum.photos/400/400?3' },
-    { id: '4', uri: 'https://picsum.photos/400/400?3' },
-      { id: '5', uri: 'https://picsum.photos/400/400?3' },
-];
-
-const mockPosts = [
-  { id: 'p1', title: 'Post Title One', time: '2 hours ago', image: 'https://picsum.photos/800/400?1', ongoing: true, popular: false },
-  { id: 'p2', title: 'Post Title Two', time: 'Yesterday', image: 'https://picsum.photos/800/400?2', ongoing: false, popular: true },
-];
+type NavType = NativeStackNavigationProp<RootStackParamList>;
+type RouteType = RouteProp<RootStackParamList, 'PlayerProfile'>;
 
 export default function PlayerProfileScreen() {
+  const navigation = useNavigation<NavType>();
+  const route = useRoute<RouteType>();
+  const { profileData } = useUserProfile();
+  const [userData, setUserData] = useState<any>(null);
+  const [activeBottom, setActiveBottom] = useState<'match'|'chat'|'square'|'me'>('me');
+
+  useEffect(() => {
+    // 优先使用路由传参，其次使用当前登录用户的 shortId
+    const shortIdParam = route.params?.userId;
+    const shortId = shortIdParam
+      ? Number(shortIdParam)
+      : profileData.shortId;
+    if (!shortId) {
+      console.warn('[FetchProfile] No shortId available, skipping fetch.');
+      return;
+    }
+
+    const fetchProfile = async () => {
+      const url = `${FULL_BASE_URL}/api/user/profile?shortId=${shortId}`;
+      console.log('[FetchProfile] GET', url);
+      try {
+        const resp = await fetch(url);
+        if (!resp.ok) {
+          throw new Error(`Status ${resp.status}`);
+        }
+        const data = await resp.json();
+        console.log('[FetchProfile] data:', data);
+        setUserData(data);
+      } catch (err) {
+        console.error('[FetchProfile] failed:', err);
+        setUserData(null);
+      }
+    };
+
+    fetchProfile();
+  }, [route.params?.userId, profileData.shortId]);
+
+  // Loading 状态
+  if (userData === null) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <ActivityIndicator size="large" style={{ marginTop: 40 }} />
+      </SafeAreaView>
+    );
+  }
+
   return (
-    <View style={{ flex: 1, backgroundColor: '#fff' }}>
-      {/* Identity Section */}
-      <View style={{ flexDirection: 'row', alignItems: 'center', padding: 16 }}>
+    <SafeAreaView style={styles.container}>
+      {/* 身份/Profile 头部 */}
+      <View style={styles.identitySection}>
         <TouchableOpacity>
-          <Image
-            source={{ uri: 'https://picsum.photos/200' }}
-            style={{ width: 80, height: 80, borderRadius: 40, borderWidth: 2, borderColor: '#fff' }}
+          <FastImage
+            source={{
+              uri: userData.profilePictureUrl
+                ? FULL_BASE_URL + userData.profilePictureUrl
+                : 'https://via.placeholder.com/200x200.png?text=No+Avatar',
+            }}
+            style={styles.avatar}
+            resizeMode={FastImage.resizeMode.cover}
           />
         </TouchableOpacity>
         <View style={{ marginLeft: 16 }}>
-          <Text style={{ fontSize: 18, fontWeight: 'bold' }}>Username</Text>
+          <Text style={styles.username}>
+            {userData.nickname || 'Unnamed User'}
+          </Text>
           <TouchableOpacity>
-            <Text style={{ color: '#888' }}>ID: user12345</Text>
+            <Text style={styles.userId}>ID: {userData.shortId}</Text>
           </TouchableOpacity>
         </View>
       </View>
 
-      {/* Data Dashboard */}
-      <View style={{ flexDirection: 'row', justifyContent: 'space-around', paddingVertical: 12 }}>
-        <TouchableOpacity style={{ alignItems: 'center' }}>
-          <Text style={{ fontSize: 18, fontWeight: 'bold' }}>150</Text>
-          <Text style={{ color: '#888' }}>Followers</Text>
+      {/* 粉丝 / 关注 */}
+      <View style={styles.statsRow}>
+        <TouchableOpacity style={styles.statItem}>
+          <Text style={styles.statNumber}>
+            {userData.followerCount ?? 0}
+          </Text>
+          <Text style={styles.statLabel}>粉丝</Text>
         </TouchableOpacity>
-        <TouchableOpacity style={{ alignItems: 'center' }}>
-          <Text style={{ fontSize: 18, fontWeight: 'bold' }}>180</Text>
-          <Text style={{ color: '#888' }}>Following</Text>
+        <TouchableOpacity style={styles.statItem}>
+          <Text style={styles.statNumber}>
+            {userData.followingCount ?? 0}
+          </Text>
+          <Text style={styles.statLabel}>关注</Text>
         </TouchableOpacity>
       </View>
 
-      {/* Pinned Album */}
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ paddingHorizontal: 16 }}>
-        {mockPinnedPhotos.map(photo => (
-          <TouchableOpacity key={photo.id} style={{ marginRight: 12 }}>
-            <Image
-              source={{ uri: photo.uri }}
-              style={{ width: 100, height: 100, borderRadius: 8 }}
+      {/* 相册预览 */}
+      {Array.isArray(userData.albumUrls) && userData.albumUrls.length > 0 && (
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          style={{ paddingHorizontal: 16, marginVertical: 12 }}
+        >
+          {userData.albumUrls.map((uri: string, idx: number) => (
+            <TouchableOpacity key={idx} style={{ marginRight: 12 }}>
+              <FastImage
+                source={{ uri: FULL_BASE_URL + uri }}
+                style={{ width: 100, height: 100, borderRadius: 8 }}
+                resizeMode={FastImage.resizeMode.cover}
+              />
+            </TouchableOpacity>
+          ))}
+        </ScrollView>
+      )}
+
+      {/* 简介 */}
+      <View style={{ paddingHorizontal: 16, marginBottom: 12 }}>
+        <Text style={styles.bio}>{userData.bio || 'No bio available.'}</Text>
+      </View>
+
+      {/* 底部导航 */}
+      <View style={styles.bottomNav}>
+        {BOTTOM_TABS.map(t => (
+          <TouchableOpacity
+            key={t.key}
+            onPress={() => {
+              setActiveBottom(t.key);
+              if (t.screen !== 'PlayerProfile') {
+                navigation.navigate(t.screen as any);
+              }
+            }}
+            style={styles.navItem}
+          >
+            <Ionicons
+              name={t.icon}
+              size={24}
+              color={activeBottom === t.key ? '#d81e06' : '#222'}
             />
+            <Text
+              style={[
+                styles.navLabel,
+                activeBottom === t.key && { color: '#d81e06' },
+              ]}
+            >
+              {t.label}
+            </Text>
           </TouchableOpacity>
         ))}
-      </ScrollView>
-
-      {/* Post Feed */}
-      <FlatList
-        data={mockPosts}
-        keyExtractor={item => item.id}
-        renderItem={({ item }) => (
-          <TouchableOpacity style={{ margin: 16, backgroundColor: '#f9f9f9', borderRadius: 8, overflow: 'hidden' }}>
-            <Image source={{ uri: item.image }} style={{ width: '100%', height: 200 }} />
-            <View style={{ padding: 12 }}>
-              <Text style={{ fontWeight: 'bold', fontSize: 16 }}>{item.title}</Text>
-              <Text style={{ color: '#888', marginTop: 4 }}>{item.time}</Text>
-              {item.ongoing && (
-                <View style={{ position: 'absolute', top: 12, right: 12, backgroundColor: '#555', borderRadius: 4, paddingHorizontal: 6, paddingVertical: 2 }}>
-                  <Text style={{ color: '#fff', fontSize: 12 }}>Ongoing</Text>
-                </View>
-              )}
-              {item.popular && (
-                <View style={{ position: 'absolute', top: 12, right: 12, backgroundColor: '#f33', borderRadius: 4, paddingHorizontal: 6, paddingVertical: 2 }}>
-                  <Text style={{ color: '#fff', fontSize: 12 }}>🔥 Popular</Text>
-                </View>
-              )}
-            </View>
-          </TouchableOpacity>
-        )}
-      />
-
-      {/* Bottom Navigation */}
-      <View style={{ flexDirection: 'row', justifyContent: 'space-around', paddingVertical: 8, borderTopWidth: 1, borderColor: '#eee' }}>
-        <TouchableOpacity style={{ alignItems: 'center' }}>
-          <Ionicons name='heart-outline' size={24} color={'#222'} />
-          <Text style={{ fontSize: 12 }}>Match</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={{ alignItems: 'center' }}>
-          <Ionicons name='chatbubbles-outline' size={24} color={'#222'} />
-          <Text style={{ fontSize: 12 }}>Chat</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={{ alignItems: 'center' }}>
-          <Ionicons name='apps-outline' size={24} color={'#222'} />
-          <Text style={{ fontSize: 12 }}>Square</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={{ alignItems: 'center' }}>
-          <Ionicons name='person-outline' size={24} color={'#d81e06'} />
-          <Text style={{ fontSize: 12, color: '#d81e06' }}>Me</Text>
-        </TouchableOpacity>
       </View>
-    </View>
+    </SafeAreaView>
   );
 }

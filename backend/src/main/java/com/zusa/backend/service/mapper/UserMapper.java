@@ -1,5 +1,4 @@
 // src/main/java/com/zusa/backend/service/mapper/UserMapper.java
-
 package com.zusa.backend.service.mapper;
 
 import com.zusa.backend.dto.user.*;
@@ -12,7 +11,8 @@ import java.util.stream.Collectors;
 @Mapper(componentModel = "spring")
 public interface UserMapper {
 
-    /** 映射完整的 User → UserDto，手动处理复杂字段 */
+    /** 完整映射 User → UserDto */
+    @Mapping(target = "shortId", source = "shortId")
     @Mapping(target = "profilePictureUrl",
             expression = "java(user.getProfilePicture() != null ? \"/api/media/profile/\" + user.getProfilePicture().getUuid() : null)")
     @Mapping(target = "albumUrls",
@@ -25,7 +25,7 @@ public interface UserMapper {
             expression = "java(user.getPreferredVenues().stream().map(v -> v.getId()).toList())")
     @Mapping(target = "genderPreferenceIds",
             expression = "java(user.getGenderPreferences().stream().map(Gender::getId).toList())")
-    @Mapping(target = "dates", ignore = true)                 // @AfterMapping 填充
+    @Mapping(target = "dates", ignore = true)
     @Mapping(target = "city", ignore = true)
     @Mapping(target = "gender", ignore = true)
     @Mapping(target = "genderPreferences", ignore = true)
@@ -35,65 +35,52 @@ public interface UserMapper {
 
     @AfterMapping
     default void afterMapping(User user, @MappingTarget UserDto dto) {
-        // CityDto
         if (user.getCity() != null) {
-            CityDto cityDto = new CityDto();
-            cityDto.setId(user.getCity().getId());
-            cityDto.setName(user.getCity().getName());
-            dto.setCity(cityDto);
+            CityDto cd = new CityDto();
+            cd.setId(user.getCity().getId());
+            cd.setName(user.getCity().getName());
+            dto.setCity(cd);
         }
-
-        // GenderDto
         if (user.getGender() != null) {
-            GenderDto genderDto = new GenderDto();
-            genderDto.setId(user.getGender().getId());
-            genderDto.setText(user.getGender().getText());
-            dto.setGender(genderDto);
+            GenderDto gd = new GenderDto();
+            gd.setId(user.getGender().getId());
+            gd.setText(user.getGender().getText());
+            dto.setGender(gd);
         }
+        List<GenderDto> gps = user.getGenderPreferences().stream().map(g -> {
+            GenderDto gd = new GenderDto();
+            gd.setId(g.getId());
+            gd.setText(g.getText());
+            return gd;
+        }).toList();
+        dto.setGenderPreferences(gps);
 
-        // GenderPreferences
-        List<GenderDto> genderPreferences = user.getGenderPreferences().stream()
-                .map(g -> {
-                    GenderDto gd = new GenderDto();
-                    gd.setId(g.getId());
-                    gd.setText(g.getText());
-                    return gd;
-                })
-                .collect(Collectors.toList());
-        dto.setGenderPreferences(genderPreferences);
+        List<InterestDto> ids = user.getInterests().stream().map(i -> {
+            InterestDto idto = new InterestDto();
+            idto.setId(i.getId());
+            idto.setName(i.getName());
+            return idto;
+        }).toList();
+        dto.setInterests(ids);
 
-        // Interests
-        List<InterestDto> interestDtos = user.getInterests().stream()
-                .map(i -> {
-                    InterestDto idto = new InterestDto();
-                    idto.setId(i.getId());
-                    idto.setName(i.getName());
-                    return idto;
-                })
-                .collect(Collectors.toList());
-        dto.setInterests(interestDtos);
+        List<VenueDto> vds = user.getPreferredVenues().stream().map(v -> {
+            VenueDto vd = new VenueDto();
+            vd.setId(v.getId());
+            vd.setName(v.getName());
+            return vd;
+        }).toList();
+        dto.setPreferredVenues(vds);
 
-        // Venues
-        List<VenueDto> venueDtos = user.getPreferredVenues().stream()
-                .map(v -> {
-                    VenueDto vdto = new VenueDto();
-                    vdto.setId(v.getId());
-                    vdto.setName(v.getName());
-                    return vdto;
-                })
-                .collect(Collectors.toList());
-        dto.setPreferredVenues(venueDtos);
-
-        // UserDatesDto
         if (user.getDates() != null) {
-            UserDatesDto datesDto = new UserDatesDto();
-            datesDto.setCreatedAt(user.getDates().getCreatedAt());
-            datesDto.setLastActiveAt(user.getDates().getLastActiveAt());
-            dto.setDates(datesDto);
+            UserDatesDto ud = new UserDatesDto();
+            ud.setCreatedAt(user.getDates().getCreatedAt());
+            ud.setLastActiveAt(user.getDates().getLastActiveAt());
+            dto.setDates(ud);
         }
     }
 
-    /** 简化版：User → UserSummaryDto，只含 UUID、昵称、头像 URL */
+    /** 简化映射 User → UserSummaryDto */
+    @Mapping(target = "shortId", source = "shortId")
     @Mapping(target = "profilePictureUrl",
             expression = "java(user.getProfilePicture() != null ? \"/api/media/profile/\" + user.getProfilePicture().getUuid() : null)")
     UserSummaryDto toSummaryDto(User user);

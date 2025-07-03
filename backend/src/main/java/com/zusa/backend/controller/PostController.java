@@ -153,4 +153,16 @@ public class PostController {
 
         return postService.search(keyword, me, pageable);
     }
+    @GetMapping("/posts/user/{authorUuid}")
+    public Page<PostSummaryDto> listByAuthor(
+            @PathVariable UUID authorUuid,
+            Pageable pageable,
+            @AuthenticationPrincipal UserDetails principal) {
+
+        UUID me = (principal != null)
+                ? UUID.fromString(principal.getUsername())
+                : null;
+
+        return postService.listByAuthor(authorUuid, me, pageable);
+    }
 }
