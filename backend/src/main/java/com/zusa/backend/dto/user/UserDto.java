@@ -22,13 +22,10 @@ public class UserDto {
 
     /* ------- 城市 ------- */
     private CityDto city;
-    private Long cityId;
 
     /* ------- 性别 ------- */
     private GenderDto gender;
-    private Long genderId;
     private List<GenderDto> genderPreferences;
-    private List<Long> genderPreferenceIds;
 
     /* ------- 头像 / 相册 ------- */
     private String profilePictureUrl;
@@ -39,10 +36,8 @@ public class UserDto {
     private List<String> albumMimeList;
 
     /* ------- 兴趣 / 场所 ------- */
-    private List<InterestDto> interests;
-    private List<Long> interestIds;
-    private List<VenueDto> preferredVenues;
-    private List<Long> venueIds;
+    private List<String> interests;
+    private List<String> preferredVenues;
 
     /* ------- 统计 ------- */
     private long totalLikesReceived;

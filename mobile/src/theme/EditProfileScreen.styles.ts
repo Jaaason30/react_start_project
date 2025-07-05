@@ -94,5 +94,39 @@ export const styles = StyleSheet.create({
     fontSize: 14,
     color: '#333',
   },
+    albumWrapper: {
+    position: 'relative',
+    marginRight: 8,
+    marginTop: 8,
+  },
+  removeButton: {
+    position: 'absolute',
+    top: 2,
+    right: 2,
+    backgroundColor: 'rgba(0,0,0,0.6)',
+    borderRadius: 10,
+    padding: 2,
+    zIndex: 1,
+  },
+  removeButtonText: {
+    color: '#fff',
+    fontSize: 12,
+    fontWeight: 'bold',
+  },
+  addBox: {
+    width: 80,
+    height: 80,
+    borderRadius: 8,
+    backgroundColor: '#ddd',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 8,
+    marginTop: 8,
+  },
+  addText: {
+    fontSize: 30,
+    color: '#666',
+  },
+
 });
 

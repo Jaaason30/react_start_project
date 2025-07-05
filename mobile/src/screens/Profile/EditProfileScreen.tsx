@@ -17,44 +17,56 @@ import { useUserProfile } from '../../contexts/UserProfileContext';
 const FULL_BASE_URL = 'http://10.0.2.2:8080';
 
 const EditProfileScreen = () => {
-  const { profileData } = useUserProfile();
+  const { profileData, refreshProfile } = useUserProfile();
   const [nickname, setNickname] = useState<string>('');
   const [bio, setBio] = useState<string>('');
   const [dateOfBirth, setDateOfBirth] = useState<string>('');
-  const [cityId, setCityId] = useState<string>('');
-  const [genderId, setGenderId] = useState<string>('');
-  const [genderPreferenceIds, setGenderPreferenceIds] = useState<string[]>([]);
+  const [city, setCity] = useState<string>('');
+  const [gender, setGender] = useState<string>('');
+  const [genderPreferences, setGenderPreferences] = useState<string[]>([]);
   const [profileImage, setProfileImage] = useState<string | null>(null);
   const [albumImages, setAlbumImages] = useState<string[]>([]);
-  const [interestIds, setInterestIds] = useState<string[]>([]);
-  const [venueIds, setVenueIds] = useState<string[]>([]);
+  const [interests, setInterests] = useState<string[]>([]);
+  const [preferredVenues, setPreferredVenues] = useState<string[]>([]);
+  const [imageTimestamp, setImageTimestamp] = useState<number>(Date.now());
 
   useEffect(() => {
     if (!profileData?.uuid) return;
-
-    const fetchProfile = async () => {
-      try {
-        const resp = await fetch(`${FULL_BASE_URL}/api/user/profile?userUuid=${profileData.uuid}`);
-        const data = await resp.json();
-        console.log('[FetchProfile] raw data:', data);
-        setNickname(data.nickname ?? '');
-        setBio(data.bio ?? '');
-        setDateOfBirth(data.dateOfBirth ?? '');
-        setCityId(data.cityId ? data.cityId.toString() : '');
-        setGenderId(data.genderId ? data.genderId.toString() : '');
-        setGenderPreferenceIds(data.genderPreferenceIds?.map(String) ?? []);
-        setProfileImage(data.profilePictureUrl ? FULL_BASE_URL + data.profilePictureUrl : null);
-        setAlbumImages(data.albumUrls?.map(url => FULL_BASE_URL + url) ?? []);
-        setInterestIds(data.interestIds?.map(String) ?? []);
-        setVenueIds(data.venueIds?.map(String) ?? []);
-      } catch (err) {
-        console.error('[FetchProfile]', err);
-        Alert.alert('错误', '加载资料失败，请检查网络');
-      }
-    };
-
     fetchProfile();
   }, [profileData?.uuid]);
+
+  const fetchProfile = async () => {
+    if (!profileData?.uuid) return;
+    
+    try {
+      const resp = await fetch(`${FULL_BASE_URL}/api/user/profile?userUuid=${profileData.uuid}`);
+      const data = await resp.json();
+      console.log('[FetchProfile] raw data:', data);
+      setNickname(data.nickname ?? '');
+      setBio(data.bio ?? '');
+      setDateOfBirth(data.dateOfBirth ?? '');
+      setCity(data.city?.name ?? '');
+      setGender(data.gender?.text ?? '');
+      setGenderPreferences(data.genderPreferences?.map((g: { text: string }) => g.text) ?? []);
+      
+      // 添加时间戳来防止缓存
+      const timestamp = Date.now();
+      setImageTimestamp(timestamp);
+      
+      if (data.profilePictureUrl) {
+        setProfileImage(`${FULL_BASE_URL}${data.profilePictureUrl}?t=${timestamp}`);
+      } else {
+        setProfileImage(null);
+      }
+      
+      setAlbumImages(data.albumUrls?.map((url: string) => `${FULL_BASE_URL}${url}?t=${timestamp}`) ?? []);
+      setInterests(data.interests ?? []);
+      setPreferredVenues(data.preferredVenues ?? []);
+    } catch (err) {
+      console.error('[FetchProfile]', err);
+      Alert.alert('错误', '加载资料失败，请检查网络');
+    }
+  };
 
   const selectProfileImage = () => {
     ImagePicker.launchImageLibrary({ mediaType: 'photo' }, (response) => {
@@ -84,11 +96,11 @@ const EditProfileScreen = () => {
         nickname,
         bio,
         dateOfBirth,
-        cityId: cityId ? Number(cityId) : null,
-        genderId: genderId ? Number(genderId) : null,
-        genderPreferenceIds: genderPreferenceIds.map(id => Number(id)).filter(id => !isNaN(id)),
-        interestIds: interestIds.map(id => Number(id)).filter(id => !isNaN(id)),
-        venueIds: venueIds.map(id => Number(id)).filter(id => !isNaN(id)),
+        city: { name: city },
+        gender: { text: gender },
+        genderPreferences: genderPreferences.map(text => ({ text })),
+        interests,
+        preferredVenues,
       };
 
       // 处理头像上传（转换为 Base64）
@@ -121,8 +133,16 @@ const EditProfileScreen = () => {
       });
       if (resp.ok) {
         Alert.alert('成功', '资料已更新');
+        
+        // 更新成功后重新获取用户资料
+        await refreshProfile();  // 假设UserProfileContext提供了此方法
+        fetchProfile();  // 重新加载当前页面数据
+        
+        // 更新时间戳，强制刷新图片
+        setImageTimestamp(Date.now());
       } else {
-        Alert.alert('错误', '保存失败，请检查输入或稍后再试');
+        const errorData = await resp.json().catch(() => ({}));
+        Alert.alert('错误', errorData.message || '保存失败，请检查输入或稍后再试');
       }
     } catch (err) {
       console.error('[PatchProfile]', err);
@@ -143,22 +163,28 @@ const EditProfileScreen = () => {
       <Text style={styles.label}>生日</Text>
       <TextInput style={styles.input} placeholder="YYYY-MM-DD" value={dateOfBirth} onChangeText={setDateOfBirth} />
 
-      <Text style={styles.label}>城市 ID</Text>
-      <TextInput style={styles.input} placeholder="输入城市 ID" value={cityId} onChangeText={setCityId} />
+      <Text style={styles.label}>城市</Text>
+      <TextInput style={styles.input} placeholder="输入城市名称" value={city} onChangeText={setCity} />
 
-      <Text style={styles.label}>性别 ID</Text>
-      <TextInput style={styles.input} placeholder="输入性别 ID" value={genderId} onChangeText={setGenderId} />
+      <Text style={styles.label}>性别</Text>
+      <TextInput style={styles.input} placeholder="输入性别" value={gender} onChangeText={setGender} />
 
-      <Text style={styles.label}>想认识的性别偏好 ID (逗号分隔)</Text>
+      <Text style={styles.label}>想认识的性别偏好 (逗号分隔)</Text>
       <TextInput
         style={styles.input}
-        placeholder="如 1,2"
-        value={genderPreferenceIds.join(',')}
-        onChangeText={text => setGenderPreferenceIds(text.split(',').map(s => s.trim()))}
+        placeholder="如 男,女"
+        value={genderPreferences.join(',')}
+        onChangeText={text => setGenderPreferences(text.split(',').map(s => s.trim()))}
       />
 
       <Text style={styles.label}>头像</Text>
-      {profileImage && <Image source={{ uri: profileImage }} style={styles.imagePreview} />}
+      {profileImage && (
+        <Image 
+          source={{ uri: profileImage, cache: 'reload' }} 
+          style={styles.imagePreview}
+          key={`profile-${imageTimestamp}`}
+        />
+      )}
       <TouchableOpacity style={styles.button} onPress={selectProfileImage}>
         <Text style={styles.buttonText}>上传头像</Text>
       </TouchableOpacity>
@@ -166,27 +192,31 @@ const EditProfileScreen = () => {
       <Text style={styles.label}>相册</Text>
       <ScrollView horizontal>
         {albumImages.map((uri, idx) => (
-          <Image key={idx} source={{ uri }} style={styles.albumPreview} />
+          <Image 
+            key={`album-${idx}-${imageTimestamp}`} 
+            source={{ uri, cache: 'reload' }} 
+            style={styles.albumPreview} 
+          />
         ))}
       </ScrollView>
       <TouchableOpacity style={styles.button} onPress={selectAlbumImages}>
         <Text style={styles.buttonText}>上传相册图片</Text>
       </TouchableOpacity>
 
-      <Text style={styles.label}>兴趣标签 ID (逗号分隔)</Text>
+      <Text style={styles.label}>兴趣标签 (逗号分隔)</Text>
       <TextInput
         style={styles.input}
-        placeholder="如 5,9"
-        value={interestIds.join(',')}
-        onChangeText={text => setInterestIds(text.split(',').map(s => s.trim()))}
+        placeholder="如 旅行,音乐"
+        value={interests.join(',')}
+        onChangeText={text => setInterests(text.split(',').map(s => s.trim()))}
       />
 
-      <Text style={styles.label}>偏好场所 ID (逗号分隔)</Text>
+      <Text style={styles.label}>偏好场所 (逗号分隔)</Text>
       <TextInput
         style={styles.input}
-        placeholder="如 2,4"
-        value={venueIds.join(',')}
-        onChangeText={text => setVenueIds(text.split(',').map(s => s.trim()))}
+        placeholder="如 咖啡厅,餐厅"
+        value={preferredVenues.join(',')}
+        onChangeText={text => setPreferredVenues(text.split(',').map(s => s.trim()))}
       />
 
       <TouchableOpacity style={styles.saveButton} onPress={handleSave}>

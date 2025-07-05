@@ -1,241 +1,199 @@
-// src/screens/Profile/PlayerProfileScreen.tsx
-import React, { useEffect, useState } from 'react';
+// src/screens/EditProfileScreen.tsx
+
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
+  TextInput,
   TouchableOpacity,
-  SafeAreaView,
-  FlatList,
-  ActivityIndicator,
+  ScrollView,
+  Image,
+  Alert,
 } from 'react-native';
-import Ionicons from 'react-native-vector-icons/Ionicons';
-import FastImage from 'react-native-fast-image';
-import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
-import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
-//import { styles } from '../../theme/PlayerProfileScreen.styles';
+import * as ImagePicker from 'react-native-image-picker';
+import { styles } from '../../theme/EditProfileScreen.styles';
 import { useUserProfile } from '../../contexts/UserProfileContext';
 
-export type RootStackParamList = {
-  Dashboard: undefined;
-  SeatOverview: undefined;
-  Discover: undefined;
-  PlayerProfile: { userId?: string } | undefined;
-};
+const FULL_BASE_URL = 'http://10.0.2.2:8080';
 
-type Nav = NativeStackNavigationProp<RootStackParamList>;
-type ProfileRouteProp = RouteProp<RootStackParamList, 'PlayerProfile'>;
-
-const BASE_URL = 'http://10.0.2.2:8080';
-
-export default function PlayerProfileScreen() {
-  const navigation = useNavigation<Nav>();
-  const route = useRoute<ProfileRouteProp>();
+const EditProfileScreen = () => {
   const { profileData } = useUserProfile();
-  const [userData, setUserData] = useState<any>(null);
-  const [loading, setLoading] = useState(true);
+  const [nickname, setNickname] = useState<string>('');
+  const [bio, setBio] = useState<string>('');
+  const [dateOfBirth, setDateOfBirth] = useState<string>('');
+  const [city, setCity] = useState<string>('');
+  const [gender, setGender] = useState<string>('');
+  const [genderPreferences, setGenderPreferences] = useState<string[]>([]);
+  const [profileImage, setProfileImage] = useState<string | null>(null);
+  const [albumImages, setAlbumImages] = useState<string[]>([]);
+  const [interests, setInterests] = useState<string[]>([]);
+  const [preferredVenues, setPreferredVenues] = useState<string[]>([]);
 
   useEffect(() => {
+    if (!profileData?.uuid) return;
+
     const fetchProfile = async () => {
-      // Determine which UUID to fetch: route param or own profile
-      const uuidToFetch = route.params?.userId ?? profileData?.uuid;
-      if (!uuidToFetch) {
-        console.warn('[FetchProfile] No UUID available, skipping fetch.');
-        setLoading(false);
-        return;
-      }
-
-      const url = `${BASE_URL}/api/user/profile?userUuid=${uuidToFetch}`;
-      console.log('[FetchProfile] Fetching profile for UUID:', uuidToFetch);
-
       try {
-        const response = await fetch(url);
-        console.log('[FetchProfile] Response status:', response.status);
-
-        if (!response.ok) {
-          throw new Error(`Request failed with status ${response.status}`);
-        }
-
-        const data = await response.json();
-        console.log('[FetchProfile] Received data:', data);
-        setUserData(data);
+        const resp = await fetch(`${FULL_BASE_URL}/api/user/profile?userUuid=${profileData.uuid}`);
+        const data = await resp.json();
+        console.log('[FetchProfile] raw data:', data);
+        setNickname(data.nickname ?? '');
+        setBio(data.bio ?? '');
+        setDateOfBirth(data.dateOfBirth ?? '');
+        setCity(data.city?.name ?? '');
+        setGender(data.gender?.text ?? '');
+        setGenderPreferences(data.genderPreferences?.map((g: { text: string }) => g.text) ?? []);
+        setProfileImage(data.profilePictureUrl ? FULL_BASE_URL + data.profilePictureUrl : null);
+        setAlbumImages(data.albumUrls?.map((url: string) => FULL_BASE_URL + url) ?? []);
+        setInterests(data.interests ?? []);
+        setPreferredVenues(data.preferredVenues ?? []);
       } catch (err) {
-        console.error('[FetchProfile] Failed to load user profile:', err);
-        setUserData(null);
-      } finally {
-        setLoading(false);
+        console.error('[FetchProfile]', err);
+        Alert.alert('错误', '加载资料失败，请检查网络');
       }
     };
 
     fetchProfile();
-  }, [route.params?.userId, profileData?.uuid]);
+  }, [profileData?.uuid]);
+
+  const selectProfileImage = () => {
+    ImagePicker.launchImageLibrary({ mediaType: 'photo' }, (response) => {
+      if (response.assets && response.assets.length > 0 && response.assets[0].uri) {
+        setProfileImage(response.assets[0].uri);
+      }
+    });
+  };
+
+  const selectAlbumImages = () => {
+    ImagePicker.launchImageLibrary({ mediaType: 'photo', selectionLimit: 5 }, (response) => {
+      if (response.assets && response.assets.length > 0) {
+        const uris = response.assets.map(asset => asset.uri).filter((uri): uri is string => uri !== undefined);
+        setAlbumImages(uris);
+      }
+    });
+  };
+
+  const handleSave = async () => {
+    if (!profileData?.uuid) {
+      Alert.alert('错误', '用户未登录');
+      return;
+    }
+
+    try {
+      const payload: any = {
+        nickname,
+        bio,
+        dateOfBirth,
+        city: { name: city },
+        gender: { text: gender },
+        genderPreferences: genderPreferences.map(text => ({ text })),
+        interests,
+        preferredVenues,
+      };
+
+      // 处理头像上传（转换为 Base64）
+      if (profileImage && !profileImage.startsWith('http')) {
+        const file = await fetch(profileImage);
+        const blob = await file.blob();
+        const reader = new FileReader();
+        reader.onloadend = async () => {
+          const base64data = (reader.result as string).split(',')[1];
+          payload.profileBase64 = base64data;
+          payload.profileMime = blob.type;
+          await sendRequest(payload);
+        };
+        reader.readAsDataURL(blob);
+      } else {
+        await sendRequest(payload);
+      }
+    } catch (err) {
+      console.error('[SaveProfile]', err);
+      Alert.alert('错误', '保存失败，请重试');
+    }
+  };
+
+  const sendRequest = async (payload: any) => {
+    try {
+      const resp = await fetch(`${FULL_BASE_URL}/api/user/profile?userUuid=${profileData.uuid}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      if (resp.ok) {
+        Alert.alert('成功', '资料已更新');
+      } else {
+        Alert.alert('错误', '保存失败，请检查输入或稍后再试');
+      }
+    } catch (err) {
+      console.error('[PatchProfile]', err);
+      Alert.alert('错误', '保存失败，请检查网络');
+    }
+  };
 
   return (
-    <SafeAreaView style={styles.container}>
-      {/* Top Bar */}
-      <View style={styles.topBar}>
-        <TouchableOpacity onPress={() => navigation.goBack()}>
-          <Ionicons name="chevron-back" size={24} color="#fff" />
-        </TouchableOpacity>
-        <TouchableOpacity>
-          <Ionicons name="settings-outline" size={22} color="#fff" />
-        </TouchableOpacity>
-      </View>
+    <ScrollView style={styles.container}>
+      <Text style={styles.header}>编辑资料</Text>
 
-      {loading ? (
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#ff00cc" />
-        </View>
-      ) : userData ? (
-        <View style={styles.profileHeader}>
-          <FastImage
-            source={{
-              uri: userData.profilePictureUrl
-                ? BASE_URL + userData.profilePictureUrl
-                : 'https://via.placeholder.com/200x200.png?text=No+Avatar',
-            }}
-            style={styles.avatar}
-            onError={() => console.error('[Avatar] Failed to load avatar')}
-            resizeMode={FastImage.resizeMode.cover}
-          />
-          <Text style={styles.nickname}>{userData.nickname ?? 'Unnamed User'}</Text>
-          <Text style={styles.userId}>Age: {userData.age ?? 'N/A'} yrs</Text>
+      <Text style={styles.label}>昵称</Text>
+      <TextInput style={styles.input} placeholder="输入昵称" value={nickname} onChangeText={setNickname} />
 
-          {userData.city?.name && (
-            <Text style={styles.userId}>From: {userData.city.name}</Text>
-          )}
-          {userData.gender?.text && (
-            <Text style={styles.userId}>Gender: {userData.gender.text}</Text>
-          )}
+      <Text style={styles.label}>个性签名</Text>
+      <TextInput style={styles.input} placeholder="输入个性签名" value={bio} onChangeText={setBio} />
 
-          {Array.isArray(userData.genderPreferences) &&
-            userData.genderPreferences.length > 0 && (
-              <Text style={styles.userId}>
-                Seeks:{' '}
-                {userData.genderPreferences.map((g: any) => g.text).join(' / ')}
-              </Text>
-            )}
+      <Text style={styles.label}>生日</Text>
+      <TextInput style={styles.input} placeholder="YYYY-MM-DD" value={dateOfBirth} onChangeText={setDateOfBirth} />
 
-          <Text style={styles.bio}>{userData.bio ?? 'No bio available.'}</Text>
+      <Text style={styles.label}>城市</Text>
+      <TextInput style={styles.input} placeholder="输入城市名称" value={city} onChangeText={setCity} />
 
-          {Array.isArray(userData.interests) &&
-            userData.interests.length > 0 && (
-              <View style={styles.tags}>
-                {userData.interests.map((int: any) => (
-                  <Text key={int.id} style={styles.tag}>
-                    #{int.name}
-                  </Text>
-                ))}
-              </View>
-            )}
+      <Text style={styles.label}>性别</Text>
+      <TextInput style={styles.input} placeholder="输入性别" value={gender} onChangeText={setGender} />
 
-          {Array.isArray(userData.albumUrls) && userData.albumUrls.length > 0 && (
-            <View style={styles.albumWrapper}>
-              <FlatList
-                data={userData.albumUrls}
-                keyExtractor={(item, idx) => `${item}-${idx}`}
-                horizontal
-                showsHorizontalScrollIndicator={false}
-                contentContainerStyle={styles.albumScrollContent}
-                renderItem={({ item }) => {
-                  const uri = BASE_URL + item;
-                  return (
-                    <FastImage
-                      source={{ uri }}
-                      style={styles.photoItem}
-                      onError={() => console.error('[Album] Failed to load image:', uri)}
-                      resizeMode={FastImage.resizeMode.cover}
-                    />
-                  );
-                }}
-              />
-            </View>
-          )}
+      <Text style={styles.label}>想认识的性别偏好 (逗号分隔)</Text>
+      <TextInput
+        style={styles.input}
+        placeholder="如 男,女"
+        value={genderPreferences.join(',')}
+        onChangeText={text => setGenderPreferences(text.split(',').map(s => s.trim()))}
+      />
 
-          <Text style={styles.userId}>
-            Likes Received: {userData.totalLikesReceived ?? 0}
-          </Text>
+      <Text style={styles.label}>头像</Text>
+      {profileImage && <Image source={{ uri: profileImage }} style={styles.imagePreview} />}
+      <TouchableOpacity style={styles.button} onPress={selectProfileImage}>
+        <Text style={styles.buttonText}>上传头像</Text>
+      </TouchableOpacity>
 
-          {Array.isArray(userData.preferredVenues) &&
-            userData.preferredVenues.length > 0 && (
-              <Text style={styles.userId}>
-                Venues:{' '}
-                {userData.preferredVenues.map((v: any) => v.name).join(' / ')}
-              </Text>
-            )}
+      <Text style={styles.label}>相册</Text>
+      <ScrollView horizontal>
+        {albumImages.map((uri, idx) => (
+          <Image key={idx} source={{ uri }} style={styles.albumPreview} />
+        ))}
+      </ScrollView>
+      <TouchableOpacity style={styles.button} onPress={selectAlbumImages}>
+        <Text style={styles.buttonText}>上传相册图片</Text>
+      </TouchableOpacity>
 
-          {userData.dates?.createdAt && (
-            <Text style={styles.userId}>
-              Joined: {new Date(userData.dates.createdAt).toLocaleDateString()}
-            </Text>
-          )}
+      <Text style={styles.label}>兴趣标签 (逗号分隔)</Text>
+      <TextInput
+        style={styles.input}
+        placeholder="如 旅行,音乐"
+        value={interests.join(',')}
+        onChangeText={text => setInterests(text.split(',').map(s => s.trim()))}
+      />
 
-          {userData.dates?.lastActiveAt && (
-            <Text style={styles.userId}>
-              Last Active: {new Date(userData.dates.lastActiveAt).toLocaleDateString()}
-            </Text>
-          )}
-        </View>
-      ) : (
-        <View style={styles.loadingContainer}>
-          <Text style={styles.userId}>Unable to load profile.</Text>
-        </View>
-      )}
-    </SafeAreaView>
+      <Text style={styles.label}>偏好场所 (逗号分隔)</Text>
+      <TextInput
+        style={styles.input}
+        placeholder="如 咖啡厅,餐厅"
+        value={preferredVenues.join(',')}
+        onChangeText={text => setPreferredVenues(text.split(',').map(s => s.trim()))}
+      />
+
+      <TouchableOpacity style={styles.saveButton} onPress={handleSave}>
+        <Text style={styles.saveButtonText}>保存修改</Text>
+      </TouchableOpacity>
+    </ScrollView>
   );
-}
+};
 
-// src/theme/PlayerProfileScreen.styles.ts
-import { StyleSheet, Dimensions } from 'react-native';
-
-const { width } = Dimensions.get('window');
-const GRID_GAP = 8;
-const CARD_SIZE = (width - GRID_GAP * 3) / 2;
-
-/* 横向照片墙尺寸 */
-const PHOTO_HEIGHT = 160;
-const PHOTO_V_PADDING = 12;
-const PHOTO_WRAPPER_H = PHOTO_HEIGHT + PHOTO_V_PADDING * 2;
-
-export const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#000' },
-  topBar: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    padding: 12,
-    backgroundColor: '#111',
-  },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 16,
-  },
-  profileHeader: { alignItems: 'center', paddingVertical: 16 },
-  avatar: {
-    width: 96,
-    height: 96,
-    borderRadius: 48,
-    borderWidth: 2,
-    borderColor: '#ff00cc',
-  },
-  nickname: { fontSize: 20, color: '#fff', fontWeight: 'bold', marginTop: 8 },
-  userId: { color: '#aaa', fontSize: 12, marginTop: 4 },
-  bio: { marginTop: 6, color: '#ccc', fontSize: 13, textAlign: 'center', paddingHorizontal: 16 },
-  tags: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 6 },
-  tag: {
-    color: '#0ff',
-    fontSize: 12,
-    backgroundColor: '#222',
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 6,
-  },
-  albumWrapper: {
-    height: PHOTO_WRAPPER_H,
-    paddingVertical: PHOTO_V_PADDING,
-    marginTop: 12,
-  },
-  albumScrollContent: { paddingHorizontal: 12 },
-  photoItem: { width: 120, height: PHOTO_HEIGHT, borderRadius: 12, marginRight: 10 },
-  bottomBar: { /* ... if needed ... */ },
-});
+export default EditProfileScreen;

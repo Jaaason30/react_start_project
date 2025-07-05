@@ -19,7 +19,7 @@ import {
 } from 'react-native';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import FastImage from 'react-native-fast-image';
-import { useRoute, useNavigation } from '@react-navigation/native';
+import { useRoute, useNavigation, useFocusEffect } from '@react-navigation/native';
 import type { RouteProp } from '@react-navigation/native';
 import { styles } from '../../theme/PostDetailScreen.styles';
 import { useUserProfile } from '../../contexts/UserProfileContext';
@@ -60,11 +60,19 @@ type PostType = {
   followedByCurrentUser: boolean;
 };
 
+// 添加时间戳到URL以防止缓存
+const addTimestampToUrl = (url: string): string => {
+  if (!url) return url;
+  const timestamp = Date.now();
+  const separator = url.includes('?') ? '&' : '?';
+  return `${url}${separator}t=${timestamp}`;
+};
+
 const PostDetailScreen = () => {
   const navigation = useNavigation();
   const route = useRoute<PostDetailRouteProp>();
   const { post: initialPost } = route.params;
-  const { profileData } = useUserProfile();
+  const { profileData, refreshProfile } = useUserProfile();
 
   const listRef = useRef<FlatList<CommentType>>(null);
   const [commentY, setCommentY] = useState(0);
@@ -81,6 +89,7 @@ const PostDetailScreen = () => {
   const [page, setPage] = useState(0);
   const [hasMore, setHasMore] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [imageTimestamp, setImageTimestamp] = useState(Date.now());
 
   const [isLiked, setIsLiked] = useState(false);
   const [isCollected, setIsCollected] = useState(false);
@@ -100,15 +109,19 @@ const PostDetailScreen = () => {
         img.url.startsWith('http') ? img.url : `${FULL_BASE_URL}${img.url}`
       );
 
+      // 为头像URL添加时间戳，防止缓存
+      const currentTimestamp = Date.now();
+      const avatarUrl = data.author?.profilePictureUrl
+        ? `${FULL_BASE_URL}${data.author.profilePictureUrl}?t=${currentTimestamp}`
+        : 'https://via.placeholder.com/200x200.png?text=No+Avatar';
+
       const newPost: PostType = {
         uuid: data.uuid,
         title: data.title,
         content: data.content,
         images: processedImages,
         author: data.author?.nickname || '未知用户',
-        authorAvatar: data.author?.profilePictureUrl
-          ? `${FULL_BASE_URL}${data.author.profilePictureUrl}`
-          : 'https://via.placeholder.com/200x200.png?text=No+Avatar',
+        authorAvatar: avatarUrl,
         authorUuid: data.author?.uuid,
         likeCount: data.likeCount ?? 0,
         collectCount: data.collectCount ?? 0,
@@ -117,7 +130,6 @@ const PostDetailScreen = () => {
         collectedByCurrentUser: !!data.collectedByCurrentUser,
         followedByCurrentUser:
           data.followedByViewer ??
-          
           data.followedByCurrentUser ??
           false,
       };
@@ -126,6 +138,9 @@ const PostDetailScreen = () => {
       setIsLiked(newPost.likedByCurrentUser);
       setIsCollected(newPost.collectedByCurrentUser);
       setIsFollowing(newPost.followedByCurrentUser);
+      
+      // 更新时间戳，强制FastImage重新加载
+      setImageTimestamp(currentTimestamp);
     } catch (err) {
       console.error('[❌ fetchPostDetail]', err);
     } finally {
@@ -144,12 +159,14 @@ const PostDetailScreen = () => {
       const res = await fetch(url, { credentials: 'include' });
       const data = await res.json();
 
+      // 为评论头像添加时间戳
+      const currentTimestamp = Date.now();
       const newComments = (data.content || []).map((c: any) => ({
         id: c.uuid,
         authorUuid: c.author.uuid,
         user: c.author.nickname,
         avatar: c.author.profilePictureUrl
-          ? `${FULL_BASE_URL}${c.author.profilePictureUrl}`
+          ? `${FULL_BASE_URL}${c.author.profilePictureUrl}?t=${currentTimestamp}`
           : 'https://via.placeholder.com/100x100.png?text=No+Avatar',
         content: c.content,
         time: new Date(c.createdAt).toLocaleString(),
@@ -161,6 +178,9 @@ const PostDetailScreen = () => {
         pageNumber === 0 ? newComments : [...prev, ...newComments]
       );
       setHasMore(!data.last);
+      
+      // 更新时间戳，强制FastImage重新加载
+      setImageTimestamp(currentTimestamp);
     } catch (err) {
       console.error('[❌ fetchComments]', err);
     }
@@ -204,9 +224,9 @@ const PostDetailScreen = () => {
           body: JSON.stringify({ type, userUuid: profileData.uuid }),
         }
       );
-      console.log(`[toggleReaction ${type}] status:`, res.status); // 新增日志
+      console.log(`[toggleReaction ${type}] status:`, res.status);
       const data = await res.json();
-      console.log(`[toggleReaction ${type}] response:`, data); // 新增日志
+      console.log(`[toggleReaction ${type}] response:`, data);
       setPost(prev =>
         prev
           ? {
@@ -281,9 +301,35 @@ const PostDetailScreen = () => {
     setPage(0);
   }, [initialPost.uuid, activeSort]);
 
+  // 当用户资料发生变化时，特别是头像更新时，重新获取帖子详情
+  useEffect(() => {
+    if (post?.authorUuid === profileData.uuid) {
+      fetchPostDetail();
+    }
+  }, [profileData.profilePictureUrl]);
+
+  // 使用useFocusEffect确保每次页面聚焦时都刷新数据
+  useFocusEffect(
+    React.useCallback(() => {
+      // 更新时间戳，强制FastImage重新加载
+      setImageTimestamp(Date.now());
+      
+      // 当前用户是帖子作者时，刷新帖子数据
+      if (post?.authorUuid === profileData.uuid) {
+        fetchPostDetail();
+      }
+      
+      return () => {}; // 清理函数
+    }, [post?.authorUuid, profileData.uuid])
+  );
+
   const onRefresh = async () => {
     setRefreshing(true);
+    // 刷新用户资料
+    await refreshProfile();
+    // 刷新帖子详情
     await fetchPostDetail();
+    // 刷新评论
     await fetchComments(0);
     setRefreshing(false);
   };
@@ -326,9 +372,14 @@ const PostDetailScreen = () => {
                 <Ionicons name="chevron-back" size={24} />
               </TouchableOpacity>
               <FastImage
-                source={{ uri: post.authorAvatar }}
+                source={{ 
+                  uri: post.authorAvatar,
+                  headers: { 'Cache-Control': 'no-cache' },
+                  priority: FastImage.priority.high 
+                }}
                 style={styles.avatar}
                 resizeMode={FastImage.resizeMode.cover}
+                key={`avatar-${imageTimestamp}`}
               />
               <Text style={styles.authorName}>{post.author}</Text>
               <TouchableOpacity
@@ -408,9 +459,14 @@ const PostDetailScreen = () => {
         renderItem={({ item }) => (
           <View style={styles.commentItem}>
             <FastImage
-              source={{ uri: item.avatar }}
+              source={{ 
+                uri: item.avatar,
+                headers: { 'Cache-Control': 'no-cache' },
+                priority: FastImage.priority.normal
+              }}
               style={styles.commentAvatar}
               resizeMode={FastImage.resizeMode.cover}
+              key={`comment-avatar-${item.id}-${imageTimestamp}`}
             />
             <View style={{ flex: 1, marginLeft: 8 }}>
               <View style={styles.commentTopRow}>
@@ -578,7 +634,7 @@ const PostDetailScreen = () => {
                     authorUuid: data.author.uuid,
                     user: data.author.nickname,
                     avatar: data.author.profilePictureUrl
-                      ? `${FULL_BASE_URL}${data.author.profilePictureUrl}`
+                      ? `${FULL_BASE_URL}${data.author.profilePictureUrl}?t=${Date.now()}`
                       : 'https://via.placeholder.com/100x100.png?text=No+Avatar',
                     content: data.content,
                     time: new Date(data.createdAt).toLocaleString(),

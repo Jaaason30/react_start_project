@@ -143,16 +143,17 @@ export default function PlayerProfileScreen() {
 
       {/* Identity Section */}
       <View style={styles.identitySection}>
-        <TouchableOpacity>
-          <FastImage
-            source={{
-              uri: userData.profilePictureUrl
-                ? FULL_BASE_URL + userData.profilePictureUrl
-                : 'https://via.placeholder.com/200x200.png?text=No+Avatar'
-            }}
-            style={styles.avatar}
-          />
-        </TouchableOpacity>
+<TouchableOpacity>
+  <FastImage
+    source={{
+      uri: userData.profilePictureUrl
+        ? `${FULL_BASE_URL}${userData.profilePictureUrl}?t=${userData?.updatedAt ?? Date.now()}`
+        : 'https://via.placeholder.com/200x200.png?text=No+Avatar'
+    }}
+    style={styles.avatar}
+  />
+</TouchableOpacity>
+
         <View style={styles.identityText}>
           <Text style={styles.username}>{userData.nickname}</Text>
           <Text style={styles.userId}>ID: {userData.shortId ?? '未设置'}</Text>

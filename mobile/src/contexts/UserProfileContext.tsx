@@ -14,14 +14,11 @@ export type PartialUserDto = {
   age?: number;
 
   // Location
-  cityId?: number;
-  city?: { id: number; name: string };
+  city?: { name: string };
 
   // Gender
-  genderId?: number;
-  gender?: { id: number; name: string };
-  genderPreferenceIds?: number[];
-  genderPreferences?: Array<{ id: number; name: string }>;
+  gender?: { text: string };
+  genderPreferences?: Array<{ text: string }>;
 
   // Media
   profileBase64?: string;
@@ -33,11 +30,8 @@ export type PartialUserDto = {
   albumUrls?: string[];
 
   // Interests and Venues
-  interestIds?: number[];
-  interests?: Array<{ id: number; name: string }>;
-
-  venueIds?: number[];
-  preferredVenues?: Array<{ id: number; name: string }>;
+  interests?: string[];
+  preferredVenues?: string[];
 
   // Statistics & Relationships
   totalLikesReceived?: number;
@@ -50,32 +44,49 @@ export type PartialUserDto = {
 type ContextType = {
   profileData: PartialUserDto;
   setProfileData: React.Dispatch<React.SetStateAction<PartialUserDto>>;
+  refreshProfile: () => Promise<void>;
 };
 
 const defaultContextValue: ContextType = {
   profileData: {} as PartialUserDto,
   setProfileData: () => {},
+  refreshProfile: async () => {},
 };
 
 export const UserProfileContext = createContext<ContextType>(defaultContextValue);
 
 export const UserProfileProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [profileData, setProfileData] = useState<PartialUserDto>({
-    genderPreferenceIds: [],
     genderPreferences: [],
     albumBase64List: [],
     albumMimeList: [],
     albumUrls: [],
-    interestIds: [],
     interests: [],
-    venueIds: [],
     preferredVenues: [],
     followers: [],
     following: [],
   });
 
+  const refreshProfile = async () => {
+    if (!profileData?.uuid) return;
+
+    try {
+      const response = await fetch(`http://10.0.2.2:8080/api/user/profile?userUuid=${profileData.uuid}`);
+      
+      if (!response.ok) {
+        throw new Error('Failed to refresh profile');
+      }
+      
+      const data = await response.json();
+      setProfileData(prevData => ({...prevData, ...data}));
+      
+    } catch (err) {
+      console.error('Failed to refresh profile:', err);
+    }
+  };
+
   return (
-    <UserProfileContext.Provider value={{ profileData, setProfileData }}>
+    <UserProfileContext.Provider value={{ profileData, setProfileData, refreshProfile }}>
       {children}
     </UserProfileContext.Provider>
   );

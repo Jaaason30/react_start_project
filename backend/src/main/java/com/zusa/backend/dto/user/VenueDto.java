@@ -5,6 +5,6 @@ import lombok.Data;
 
 @Data
 public class VenueDto {
-    private Long id;
+
     private String name;
 }

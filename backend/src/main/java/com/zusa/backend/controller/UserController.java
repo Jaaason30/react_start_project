@@ -19,7 +19,6 @@ public class UserController {
 
     private final UserService userService;
 
-    // 原有接口……
     @GetMapping("/profile")
     public ResponseEntity<UserDto> getProfileByUuid(@RequestParam UUID userUuid) {
         return ResponseEntity.ok(userService.getUserProfileByUuid(userUuid));

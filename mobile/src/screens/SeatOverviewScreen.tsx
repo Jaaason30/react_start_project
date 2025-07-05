@@ -1,13 +1,13 @@
-// src/screens/SeatOverviewScreen.tsx
 import React from 'react';
 import { View, Text, TextInput, FlatList, TouchableOpacity, StyleSheet } from 'react-native';
 import { seats } from '../data/seats';
-import { useNavigation } from '@react-navigation/native';
 import { Colors } from '../theme/colors';
+import type { NativeStackScreenProps } from '@react-navigation/native-stack';
+import type { RootStackParamList } from '../App';
 
-export default function SeatOverviewScreen() {
-  const navigation = useNavigation<any>();
+type Props = NativeStackScreenProps<RootStackParamList, 'SeatOverview'>;
 
+export default function SeatOverviewScreen({ navigation }: Props) {
   return (
     <View style={styles.container}>
       <Text style={styles.title}>卡座实时情况</Text>

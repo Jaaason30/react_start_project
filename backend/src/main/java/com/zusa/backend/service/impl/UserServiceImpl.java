@@ -1,6 +1,6 @@
-// src/main/java/com/zusa/backend/service/impl/UserServiceImpl.java
 package com.zusa.backend.service.impl;
 
+import com.zusa.backend.dto.user.GenderDto;
 import com.zusa.backend.dto.user.UserDto;
 import com.zusa.backend.dto.user.UserSummaryDto;
 import com.zusa.backend.entity.User;
@@ -9,9 +9,9 @@ import com.zusa.backend.repository.*;
 import com.zusa.backend.service.UserService;
 import com.zusa.backend.service.mapper.UserMapper;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
-import org.springframework.data.domain.PageImpl;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -19,11 +19,21 @@ import org.springframework.transaction.annotation.Transactional;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.List;
-import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
+/**
+ * UserServiceImpl
+ * 用户相关业务实现：
+ * - 注册
+ * - 登录
+ * - 查询用户资料
+ * - 修改用户资料（含头像、相册上传）
+ * - 关注/取消关注
+ * - 获取粉丝与关注列表
+ */
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class UserServiceImpl implements UserService {
 
     private final UserRepository userRepo;
@@ -50,6 +60,33 @@ public class UserServiceImpl implements UserService {
                 .build();
         userRepo.save(u);
         return userMapper.toDto(u);
+    }
+
+    @Override
+    @Transactional
+    public UserDto login(String username, String rawPassword) {
+        User u = userRepo.findByNickname(username)
+                .orElseThrow(() -> new RuntimeException("用户名或密码错误"));
+        if (!passwordEncoder.matches(rawPassword, u.getPassword())) {
+            throw new RuntimeException("用户名或密码错误");
+        }
+        return userMapper.toDto(u);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public UserDto getUserProfileByUuid(UUID uuid) {
+        User user = userRepo.findByUuid(uuid)
+                .orElseThrow(() -> new RuntimeException("找不到用户"));
+        return userMapper.toDto(user);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public UserDto getUserProfileByShortId(Long shortId) {
+        User user = userRepo.findByShortId(shortId)
+                .orElseThrow(() -> new RuntimeException("找不到用户"));
+        return userMapper.toDto(user);
     }
 
     @Override
@@ -99,57 +136,17 @@ public class UserServiceImpl implements UserService {
 
     @Override
     @Transactional
-    public UserDto login(String username, String rawPassword) {
-        User u = userRepo.findByNickname(username)
-                .orElseThrow(() -> new RuntimeException("用户名或密码错误"));
-        if (!passwordEncoder.matches(rawPassword, u.getPassword())) {
-            throw new RuntimeException("用户名或密码错误");
-        }
-        return userMapper.toDto(u);
-    }
-
-    @Override
-    @Transactional(readOnly = true)
-    public UserDto getUserProfileByUuid(UUID uuid) {
-        User user = userRepo.findByUuid(uuid)
-                .orElseThrow(() -> new RuntimeException("找不到用户"));
-        return userMapper.toDto(user);
-    }
-
-    @Override
-    @Transactional(readOnly = true)
-    public UserDto getUserProfileByShortId(Long shortId) {
-        User user = userRepo.findByShortId(shortId)
-                .orElseThrow(() -> new RuntimeException("找不到用户"));
-        return userMapper.toDto(user);
-    }
-
-    @Override
-    @Transactional
     public void updateProfilePartially(UserDto req, UUID userUuid) {
         User user = userRepo.findByUuid(userUuid)
                 .orElseThrow(() -> new RuntimeException("找不到用户"));
 
-        // 仅更新可编辑字段
-        Optional.ofNullable(req.getNickname()).ifPresent(user::setNickname);
-        Optional.ofNullable(req.getBio()).ifPresent(user::setBio);
-        Optional.ofNullable(req.getDateOfBirth()).ifPresent(user::setDateOfBirth);
-
-        if (req.getCityId() != null) {
-            cityRepo.findById(req.getCityId())
-                    .ifPresent(user::setCity);
-        }
-        if (req.getGenderId() != null) {
-            genderRepo.findById(req.getGenderId())
-                    .ifPresent(user::setGender);
-        }
-        if (req.getGenderPreferenceIds() != null) {
-            var prefs = genderRepo.findAllById(req.getGenderPreferenceIds());
-            user.setGenderPreferences(prefs);
-        }
-
-        // 头像
+        // ========== 头像上传 ==========
         if (req.getProfileBase64() != null && req.getProfileMime() != null) {
+            log.info("[AvatarUpload] 用户 UUID: {}", userUuid);
+            log.info("[AvatarUpload] 接收到头像上传，Mime: {}, Base64 长度: {}",
+                    req.getProfileMime(),
+                    req.getProfileBase64().length());
+
             var pic = user.getProfilePicture();
             if (pic == null) {
                 var newPic = UserProfilePicture.builder()
@@ -159,18 +156,32 @@ public class UserServiceImpl implements UserService {
                         .build();
                 newPic.setUser(user);
                 user.setProfilePicture(newPic);
+                log.info("[AvatarUpload] 新头像已创建，UUID: {}", newPic.getUuid());
             } else {
                 pic.setData(req.getProfileBase64());
                 pic.setMime(req.getProfileMime());
+                log.info("[AvatarUpload] 已更新现有头像，UUID: {}", pic.getUuid());
             }
         }
 
-        // 相册
+        // ========== 相册上传 ==========
         if (req.getAlbumBase64List() != null && req.getAlbumMimeList() != null
                 && req.getAlbumBase64List().size() == req.getAlbumMimeList().size()) {
+
+            log.info("[AlbumUpload] 用户 UUID: {}", userUuid);
+            log.info("[AlbumUpload] 接收到 {} 张相册图片上传", req.getAlbumBase64List().size());
+
+            for (int i = 0; i < req.getAlbumBase64List().size(); i++) {
+                log.info("[AlbumUpload] 第 {} 张图片 - Mime: {}, Base64 长度: {}",
+                        i + 1,
+                        req.getAlbumMimeList().get(i),
+                        req.getAlbumBase64List().get(i).length());
+            }
+
             var old = List.copyOf(user.getAlbumPhotos());
             user.getAlbumPhotos().clear();
             userPhotoRepository.deleteAll(old);
+            log.info("[AlbumUpload] 已删除用户旧相册，共 {} 张", old.size());
 
             var newPhotos = IntStream.range(0, req.getAlbumBase64List().size())
                     .mapToObj(i -> UserPhoto.builder()
@@ -180,16 +191,38 @@ public class UserServiceImpl implements UserService {
                             .user(user)
                             .build())
                     .toList();
+
             userPhotoRepository.saveAll(newPhotos);
             user.getAlbumPhotos().addAll(newPhotos);
+
+            log.info("[AlbumUpload] 已保存新相册，共 {} 张", newPhotos.size());
+            newPhotos.forEach(photo ->
+                    log.info("[AlbumUpload] 新增图片 UUID: {}", photo.getUuid())
+            );
         }
 
-        if (req.getInterestIds() != null) {
-            var ints = interestRepo.findAllById(req.getInterestIds());
+        // ========== 其余字段更新（不打印 info） ==========
+        Optional.ofNullable(req.getNickname()).ifPresent(user::setNickname);
+        Optional.ofNullable(req.getBio()).ifPresent(user::setBio);
+        Optional.ofNullable(req.getDateOfBirth()).ifPresent(user::setDateOfBirth);
+
+        if (req.getCity() != null && req.getCity().getName() != null) {
+            cityRepo.findByName(req.getCity().getName()).ifPresent(user::setCity);
+        }
+        if (req.getGender() != null && req.getGender().getText() != null) {
+            genderRepo.findByText(req.getGender().getText()).ifPresent(user::setGender);
+        }
+        if (req.getGenderPreferences() != null && !req.getGenderPreferences().isEmpty()) {
+            var genderTexts = req.getGenderPreferences().stream().map(GenderDto::getText).toList();
+            var prefs = genderRepo.findAllByTextIn(genderTexts);
+            user.setGenderPreferences(prefs);
+        }
+        if (req.getInterests() != null && !req.getInterests().isEmpty()) {
+            var ints = interestRepo.findAllByNameIn(req.getInterests());
             user.setInterests(ints);
         }
-        if (req.getVenueIds() != null) {
-            var vns = venueRepo.findAllById(req.getVenueIds());
+        if (req.getPreferredVenues() != null && !req.getPreferredVenues().isEmpty()) {
+            var vns = venueRepo.findAllByNameIn(req.getPreferredVenues());
             user.setPreferredVenues(vns);
         }
 
