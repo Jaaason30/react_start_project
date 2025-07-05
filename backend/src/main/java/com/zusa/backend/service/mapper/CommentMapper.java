@@ -12,8 +12,10 @@ import org.mapstruct.Mapping;
 public interface CommentMapper {
 
     @Mapping(target = "author", source = "author")
-    // likedByCurrentUser 在 ServiceImpl 中后置赋值
+    @Mapping(target = "parentCommentUuid", source = "parentComment.uuid")
+    @Mapping(target = "replyToUser", source = "replyToUser")
     @Mapping(target = "likedByCurrentUser", ignore = true)
+    @Mapping(target = "replies", ignore = true)
     CommentDto toDto(Comment c);
 
     @Mapping(target = "profilePictureUrl",

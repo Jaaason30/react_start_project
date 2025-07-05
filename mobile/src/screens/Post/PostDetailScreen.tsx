@@ -42,7 +42,16 @@ type CommentType = {
   time: string;
   likes: number;
   liked: boolean;
+  // 新增回复相关字段
+  parentCommentUuid?: string;
+  replyToUser?: {
+    uuid: string;
+    nickname: string;
+  };
+  replyCount: number;
+  replies?: CommentType[];
 };
+
 type SortType = '最新' | '最热';
 type PostType = {
   uuid: string;
@@ -58,14 +67,6 @@ type PostType = {
   likedByCurrentUser: boolean;
   collectedByCurrentUser: boolean;
   followedByCurrentUser: boolean;
-};
-
-// 添加时间戳到URL以防止缓存
-const addTimestampToUrl = (url: string): string => {
-  if (!url) return url;
-  const timestamp = Date.now();
-  const separator = url.includes('?') ? '&' : '?';
-  return `${url}${separator}t=${timestamp}`;
 };
 
 const PostDetailScreen = () => {
@@ -89,11 +90,20 @@ const PostDetailScreen = () => {
   const [page, setPage] = useState(0);
   const [hasMore, setHasMore] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [imageTimestamp, setImageTimestamp] = useState(Date.now());
 
   const [isLiked, setIsLiked] = useState(false);
   const [isCollected, setIsCollected] = useState(false);
   const [isFollowing, setIsFollowing] = useState(false);
+
+  // 新增回复相关状态
+  const [replyingTo, setReplyingTo] = useState<{
+    commentId: string;
+    userName: string;
+    parentCommentUuid?: string;
+    replyToUserUuid?: string;
+  } | null>(null);
+  const [showReplies, setShowReplies] = useState<Set<string>>(new Set());
+  const [loadingReplies, setLoadingReplies] = useState<Set<string>>(new Set());
 
   /* ========== 删除帖子 ========== */
   const handleDeletePost = () => {
@@ -121,26 +131,30 @@ const PostDetailScreen = () => {
   };
 
   /* ========== 1) 获取帖子详情（带关注状态） ========== */
-  const fetchPostDetail = async () => {
-    setLoading(true);
-    try {
-      const url =
-        `${FULL_BASE_URL}/api/posts/${initialPost.uuid}` +
-        `?userUuid=${profileData.uuid}`;
-      const res = await fetch(url, { credentials: 'include' });
-      const data = await res.json();
+const patchUrl = (url?: string) =>
+  !url
+    ? null
+    : url.startsWith('http')
+    ? url
+    : `${FULL_BASE_URL}${url}`;
 
-      const processedImages = (data.images || []).map((img: { url: string }) =>
-        img.url.startsWith('http') ? img.url : `${FULL_BASE_URL}${img.url}`
-      );
+// ── 修改 fetchPostDetail：去掉内部 setLoading，改用 patchUrl
+const fetchPostDetail = async () => {
+  try {
+    const res = await fetch(
+      `${FULL_BASE_URL}/api/posts/${initialPost.uuid}?userUuid=${profileData.uuid}`,
+      { credentials: 'include' }
+    );
+    const data = await res.json();
 
-      // 为头像URL添加时间戳，防止缓存
-      const currentTimestamp = Date.now();
-      const avatarUrl = data.author?.profilePictureUrl
-        ? `${FULL_BASE_URL}${data.author.profilePictureUrl}?t=${currentTimestamp}`
-        : 'https://via.placeholder.com/200x200.png?text=No+Avatar';
-
-      const newPost: PostType = {
+    // 用 patchUrl 处理头像和图片
+    const avatarUrl =
+      patchUrl(data.author?.profilePictureUrl) ||
+      'https://via.placeholder.com/200x200.png?text=No+Avatar';
+    const processedImages = (data.images || []).map((img: any) =>
+      patchUrl(img.url) || img.url
+    );
+       const newPost: PostType = {
         uuid: data.uuid,
         title: data.title,
         content: data.content,
@@ -159,56 +173,147 @@ const PostDetailScreen = () => {
           false,
       };
 
-      setPost(newPost);
-      setIsLiked(newPost.likedByCurrentUser);
-      setIsCollected(newPost.collectedByCurrentUser);
-      setIsFollowing(newPost.followedByCurrentUser);
-      
-      // 更新时间戳，强制FastImage重新加载
-      setImageTimestamp(currentTimestamp);
-    } catch (err) {
-      console.error('[❌ fetchPostDetail]', err);
-    } finally {
-      setLoading(false);
-    }
-  };
+    setPost(newPost);
+    setIsLiked(!!data.likedByCurrentUser);
+    setIsCollected(!!data.collectedByCurrentUser);
+    setIsFollowing(newPost.followedByCurrentUser);
+  } catch (err) {
+    console.error('[❌ fetchPostDetail]', err);
+  }
+};
 
   /* ========== 2) 获取评论 ========== */
-  const fetchComments = async (pageNumber = 0) => {
-    try {
-      const sortParam = activeSort === '最新' ? 'LATEST' : 'HOT';
-      const url =
-        `${FULL_BASE_URL}/api/posts/${initialPost.uuid}/comments` +
-        `?sortType=${sortParam}&userUuid=${profileData.uuid}` +
-        `&page=${pageNumber}&size=10`;
-      const res = await fetch(url, { credentials: 'include' });
-      const data = await res.json();
+const fetchComments = async (pageNumber = 0) => {
+  console.log(`[fetchComments] page: ${pageNumber}, sort: ${activeSort}`);
+  try {
+    const sortParam = activeSort === '最新' ? 'LATEST' : 'HOT';
+    const url =
+      `${FULL_BASE_URL}/api/posts/${initialPost.uuid}/comments` +
+      `?sortType=${sortParam}&userUuid=${profileData.uuid}` +
+      `&page=${pageNumber}&size=10&loadReplies=true`;
+    console.log('[fetchComments] fetching from:', url);
+    const res = await fetch(url, { credentials: 'include' });
+    console.log('[fetchComments] response status:', res.status);
+    const data = await res.json();
+    console.log('[fetchComments] raw data:', JSON.stringify(data, null, 2));
 
-      // 为评论头像添加时间戳
-      const currentTimestamp = Date.now();
-      const newComments = (data.content || []).map((c: any) => ({
-        id: c.uuid,
-        authorUuid: c.author.uuid,
-        user: c.author.nickname,
-        avatar: c.author.profilePictureUrl
-          ? `${FULL_BASE_URL}${c.author.profilePictureUrl}?t=${currentTimestamp}`
+const newComments = (data.content || []).map((c: any) => {
+  const processedReplies = (c.replies || []).map((r: any) => ({
+    id: r.uuid,
+    authorUuid: r.author.uuid,
+    user: r.author.nickname,
+    avatar: r.author.profilePictureUrl
+      ? `${FULL_BASE_URL}${r.author.profilePictureUrl}`
+      : 'https://via.placeholder.com/100x100.png?text=No+Avatar',
+    content: r.content,
+    time: new Date(r.createdAt).toLocaleString(),
+    likes: r.likeCount ?? 0,
+    liked: !!r.likedByCurrentUser,
+    parentCommentUuid: r.parentCommentUuid,
+    replyToUser: r.replyToUser,
+    replyCount: 0,
+  }));
+
+  return {
+    id: c.uuid,
+    authorUuid: c.author.uuid,
+    user: c.author.nickname,
+    avatar: c.author.profilePictureUrl
+      ? `${FULL_BASE_URL}${c.author.profilePictureUrl}`
+      : 'https://via.placeholder.com/100x100.png?text=No+Avatar',
+    content: c.content,
+    time: new Date(c.createdAt).toLocaleString(),
+    likes: c.likeCount ?? 0,
+    liked: !!c.likedByCurrentUser,
+    parentCommentUuid: c.parentCommentUuid,
+    replyToUser: c.replyToUser,
+    replyCount: c.replyCount || 0,
+    replies: processedReplies,
+  };
+});
+
+
+    console.log('[fetchComments] newComments:', newComments);
+    setComments(prev =>
+      pageNumber === 0 ? newComments : [...prev, ...newComments]
+    );
+    setHasMore(!data.last);
+  } catch (err) {
+    console.error('[❌ fetchComments]', err);
+  }
+};
+
+
+  /* ========== 加载评论的回复 ========== */
+const fetchReplies = async (commentId: string) => {
+  console.log(`[fetchReplies] commentId: ${commentId}`);
+  setLoadingReplies(prev => new Set(prev).add(commentId));
+  try {
+    const url = `${FULL_BASE_URL}/api/comments/${commentId}/replies?userUuid=${profileData.uuid}&page=0&size=20`;
+    console.log('[fetchReplies] fetching from:', url);
+    const res = await fetch(url, { credentials: 'include' });
+    console.log('[fetchReplies] response status:', res.status);
+    const data = await res.json();
+    console.log('[fetchReplies] raw data:', JSON.stringify(data, null, 2));
+
+    const replies = (data.content || []).map((r: any) => {
+      const replyLog = {
+        uuid: r.uuid,
+        authorUuid: r.author?.uuid,
+        nickname: r.author?.nickname,
+        profilePictureUrl: r.author?.profilePictureUrl,
+        likedByCurrentUser: r.likedByCurrentUser,
+        likeCount: r.likeCount,
+      };
+      console.log('[fetchReplies] processed reply:', replyLog);
+
+      return {
+        id: r.uuid,
+        authorUuid: r.author.uuid,
+        user: r.author.nickname,
+        avatar: r.author.profilePictureUrl
+          ? `${FULL_BASE_URL}${r.author.profilePictureUrl}`
           : 'https://via.placeholder.com/100x100.png?text=No+Avatar',
-        content: c.content,
-        time: new Date(c.createdAt).toLocaleString(),
-        likes: c.likeCount,
-        liked: !!c.likedByCurrentUser,
-      }));
+        content: r.content,
+        time: new Date(r.createdAt).toLocaleString(),
+        likes: r.likeCount,
+        liked: !!r.likedByCurrentUser,
+        parentCommentUuid: r.parentCommentUuid,
+        replyToUser: r.replyToUser,
+        replyCount: 0,
+      };
+    });
 
-      setComments(prev =>
-        pageNumber === 0 ? newComments : [...prev, ...newComments]
-      );
-      setHasMore(!data.last);
-      
-      // 更新时间戳，强制FastImage重新加载
-      setImageTimestamp(currentTimestamp);
-    } catch (err) {
-      console.error('[❌ fetchComments]', err);
-    }
+    console.log('[fetchReplies] processed replies:', replies);
+    setComments(prev => 
+      prev.map(comment => 
+        comment.id === commentId 
+          ? { ...comment, replies } 
+          : comment
+      )
+    );
+    setShowReplies(prev => new Set(prev).add(commentId));
+  } catch (err) {
+    console.error('[❌ fetchReplies]', err);
+  } finally {
+    setLoadingReplies(prev => {
+      const newSet = new Set(prev);
+      newSet.delete(commentId);
+      return newSet;
+    });
+  }
+};
+
+
+  /* ========== 开始回复评论 ========== */
+  const handleReply = (comment: CommentType) => {
+    setReplyingTo({
+      commentId: comment.id,
+      userName: comment.user,
+      parentCommentUuid: comment.parentCommentUuid || comment.id,
+      replyToUserUuid: comment.authorUuid,
+    });
+    setShowCommentModal(true);
   };
 
   /* ========== 3) 关注 / 取消关注 ========== */
@@ -317,9 +422,14 @@ const PostDetailScreen = () => {
   }, [post?.images]);
 
   /* ========== 7) 初次加载 & 依赖变化 ========== */
-  useEffect(() => {
-    fetchPostDetail();
-  }, [initialPost.uuid]);
+useEffect(() => {
+  const loadInitial = async () => {
+    setLoading(true);
+    await fetchPostDetail();
+    setLoading(false);
+  };
+  loadInitial();
+}, [initialPost.uuid]);
 
   useEffect(() => {
     fetchComments(0);
@@ -336,9 +446,6 @@ const PostDetailScreen = () => {
   // 使用useFocusEffect确保每次页面聚焦时都刷新数据
   useFocusEffect(
     React.useCallback(() => {
-      // 更新时间戳，强制FastImage重新加载
-      setImageTimestamp(Date.now());
-      
       // 当前用户是帖子作者时，刷新帖子数据
       if (post?.authorUuid === profileData.uuid) {
         fetchPostDetail();
@@ -348,17 +455,13 @@ const PostDetailScreen = () => {
     }, [post?.authorUuid, profileData.uuid])
   );
 
-  const onRefresh = async () => {
-    setRefreshing(true);
-    // 刷新用户资料
-    await refreshProfile();
-    // 刷新帖子详情
-    await fetchPostDetail();
-    // 刷新评论
-    await fetchComments(0);
-    setRefreshing(false);
-  };
-
+const onRefresh = async () => {
+  setRefreshing(true);
+  await refreshProfile();
+  await fetchPostDetail();
+  await fetchComments(0);
+  setRefreshing(false);
+};
   const loadMore = () => {
     if (!hasMore) return;
     const next = page + 1;
@@ -410,7 +513,6 @@ const PostDetailScreen = () => {
                 }}
                 style={styles.avatar}
                 resizeMode={FastImage.resizeMode.cover}
-                key={`avatar-${imageTimestamp}`}
               />
               <Text style={styles.authorName}>{post.author}</Text>
               {/* 关注按钮 - 非作者本人时显示 */}
@@ -491,76 +593,210 @@ const PostDetailScreen = () => {
         data={comments}
         keyExtractor={item => item.id}
         renderItem={({ item }) => (
-          <View style={styles.commentItem}>
-            <FastImage
-              source={{ 
-                uri: item.avatar,
-                headers: { 'Cache-Control': 'no-cache' },
-                priority: FastImage.priority.normal
-              }}
-              style={styles.commentAvatar}
-              resizeMode={FastImage.resizeMode.cover}
-              key={`comment-avatar-${item.id}-${imageTimestamp}`}
-            />
-            <View style={{ flex: 1, marginLeft: 8 }}>
-              <View style={styles.commentTopRow}>
-                <Text style={styles.commentUser}>{item.user}</Text>
-                <View style={styles.commentActions}>
-                  <TouchableOpacity
-                    style={styles.likeButton}
-                    onPress={async () => {
-                      if (!profileData?.uuid) return;
-                      try {
-                        const res = await fetch(
-                          `${FULL_BASE_URL}/api/comments/${item.id}/likes` +
-                            `?userUuid=${profileData.uuid}`,
-                          { method: 'POST', credentials: 'include' }
-                        );
-                        const updated: any = await res.json();
-                        setComments(prev =>
-                          prev.map(c =>
-                            c.id === item.id
-                              ? {
-                                  ...c,
-                                  likes: updated.likeCount,
-                                  liked: updated.likedByCurrentUser,
-                                }
-                              : c
-                          )
-                        );
-                      } catch (err) {
-                        console.error(err);
-                      }
-                    }}
-                  >
-                    <Ionicons
-                      name={item.liked ? 'heart' : 'heart-outline'}
-                      size={16}
-                      color={item.liked ? '#f33' : '#888'}
-                    />
-                    <Text
-                      style={[
-                        styles.commentLikes,
-                        item.liked && { color: '#f33' },
-                      ]}
-                    >
-                      {item.likes}
-                    </Text>
-                  </TouchableOpacity>
-                  {profileData?.uuid === item.authorUuid && (
+          <>
+            <View style={styles.commentItem}>
+              <FastImage
+                source={{ 
+                  uri: item.avatar,
+                  headers: { 'Cache-Control': 'no-cache' },
+                  priority: FastImage.priority.normal
+                }}
+                style={styles.commentAvatar}
+                resizeMode={FastImage.resizeMode.cover}
+              />
+              <View style={{ flex: 1, marginLeft: 8 }}>
+                <View style={styles.commentTopRow}>
+                  <Text style={styles.commentUser}>{item.user}</Text>
+                  <View style={styles.commentActions}>
                     <TouchableOpacity
-                      onPress={() => handleDeleteComment(item.id)}
+                      style={styles.likeButton}
+                      onPress={async () => {
+                        if (!profileData?.uuid) return;
+                        try {
+                          const res = await fetch(
+                            `${FULL_BASE_URL}/api/comments/${item.id}/likes` +
+                              `?userUuid=${profileData.uuid}`,
+                            { method: 'POST', credentials: 'include' }
+                          );
+                          const updated: any = await res.json();
+                          setComments(prev =>
+                            prev.map(c =>
+                              c.id === item.id
+                                ? {
+                                    ...c,
+                                    likes: updated.likeCount,
+                                    liked: updated.likedByCurrentUser,
+                                  }
+                                : c
+                            )
+                          );
+                        } catch (err) {
+                          console.error(err);
+                        }
+                      }}
+                    >
+                      <Ionicons
+                        name={item.liked ? 'heart' : 'heart-outline'}
+                        size={16}
+                        color={item.liked ? '#f33' : '#888'}
+                      />
+                      <Text
+                        style={[
+                          styles.commentLikes,
+                          item.liked && { color: '#f33' },
+                        ]}
+                      >
+                        {item.likes}
+                      </Text>
+                    </TouchableOpacity>
+                    
+                    {/* 新增回复按钮 */}
+                    <TouchableOpacity
+                      onPress={() => handleReply(item)}
                       style={{ marginLeft: 16 }}
                     >
-                      <Ionicons name="trash-outline" size={16} color="#888" />
+                      <Ionicons name="chatbubble-outline" size={16} color="#888" />
                     </TouchableOpacity>
-                  )}
+                    
+                    {profileData?.uuid === item.authorUuid && (
+                      <TouchableOpacity
+                        onPress={() => handleDeleteComment(item.id)}
+                        style={{ marginLeft: 16 }}
+                      >
+                        <Ionicons name="trash-outline" size={16} color="#888" />
+                      </TouchableOpacity>
+                    )}
+                  </View>
+                </View>
+                
+                {/* 显示回复对象 */}
+                {item.replyToUser && (
+                  <Text style={styles.replyToText}>
+                    回复 @{item.replyToUser.nickname}
+                  </Text>
+                )}
+                
+                <Text style={styles.commentContent}>{item.content}</Text>
+                <Text style={styles.commentTime}>{item.time}</Text>
+                
+                {/* 查看回复按钮 */}
+                {item.replyCount > 0 && (
+                  <TouchableOpacity
+                    onPress={() => {
+                      if (showReplies.has(item.id)) {
+                        setShowReplies(prev => {
+                          const newSet = new Set(prev);
+                          newSet.delete(item.id);
+                          return newSet;
+                        });
+                      } else {
+                        fetchReplies(item.id);
+                      }
+                    }}
+                    style={styles.viewRepliesButton}
+                  >
+                    <Text style={styles.viewRepliesText}>
+                      {loadingReplies.has(item.id) 
+                        ? '加载中...' 
+                        : showReplies.has(item.id) 
+                          ? '收起回复' 
+                          : `查看 ${item.replyCount} 条回复`}
+                    </Text>
+                  </TouchableOpacity>
+                )}
+              </View>
+            </View>
+            
+            {/* 渲染回复列表 */}
+            {showReplies.has(item.id) && item.replies && item.replies.map(reply => (
+              <View key={reply.id} style={[styles.commentItem, styles.replyItem]}>
+                <FastImage
+                  source={{ 
+                    uri: reply.avatar,
+                    headers: { 'Cache-Control': 'no-cache' },
+                    priority: FastImage.priority.normal
+                  }}
+                  style={styles.commentAvatar}
+                  resizeMode={FastImage.resizeMode.cover}
+                />
+                <View style={{ flex: 1, marginLeft: 8 }}>
+                  <View style={styles.commentTopRow}>
+                    <Text style={styles.commentUser}>{reply.user}</Text>
+                    {reply.replyToUser && (
+                      <Text style={styles.replyToInline}>
+                        回复 @{reply.replyToUser.nickname}
+                      </Text>
+                    )}
+                    <View style={styles.commentActions}>
+                      <TouchableOpacity
+                        style={styles.likeButton}
+                        onPress={async () => {
+                          if (!profileData?.uuid) return;
+                          try {
+                            const res = await fetch(
+                              `${FULL_BASE_URL}/api/comments/${reply.id}/likes` +
+                                `?userUuid=${profileData.uuid}`,
+                              { method: 'POST', credentials: 'include' }
+                            );
+                            const updated: any = await res.json();
+                            // 更新回复的点赞状态
+                            setComments(prev =>
+                              prev.map(c => ({
+                                ...c,
+                                replies: c.replies?.map(r =>
+                                  r.id === reply.id
+                                    ? {
+                                        ...r,
+                                        likes: updated.likeCount,
+                                        liked: updated.likedByCurrentUser,
+                                      }
+                                    : r
+                                ),
+                              }))
+                            );
+                          } catch (err) {
+                            console.error(err);
+                          }
+                        }}
+                      >
+                        <Ionicons
+                          name={reply.liked ? 'heart' : 'heart-outline'}
+                          size={14}
+                          color={reply.liked ? '#f33' : '#888'}
+                        />
+                        <Text
+                          style={[
+                            styles.replyLikes,
+                            reply.liked && { color: '#f33' },
+                          ]}
+                        >
+                          {reply.likes}
+                        </Text>
+                      </TouchableOpacity>
+
+                      <TouchableOpacity
+                        onPress={() => handleReply(reply)}
+                        style={{ marginLeft: 12 }}
+                      >
+                        <Ionicons name="chatbubble-outline" size={14} color="#888" />
+                      </TouchableOpacity>
+
+                      {profileData?.uuid === reply.authorUuid && (
+                        <TouchableOpacity
+                          onPress={() => handleDeleteComment(reply.id)}
+                          style={{ marginLeft: 12 }}
+                        >
+                          <Ionicons name="trash-outline" size={14} color="#888" />
+                        </TouchableOpacity>
+                      )}
+                    </View>
+                  </View>
+                  <Text style={styles.replyContent}>{reply.content}</Text>
+                  <Text style={styles.replyTime}>{reply.time}</Text>
                 </View>
               </View>
-              <Text style={styles.commentContent}>{item.content}</Text>
-              <Text style={styles.commentTime}>{item.time}</Text>
-            </View>
-          </View>
+            ))}
+          </>
         )}
         onEndReached={loadMore}
         onEndReachedThreshold={0.5}
@@ -620,7 +856,10 @@ const PostDetailScreen = () => {
         visible={showCommentModal}
         transparent
         animationType="slide"
-        onRequestClose={() => setShowCommentModal(false)}
+        onRequestClose={() => {
+          setShowCommentModal(false);
+          setReplyingTo(null);
+        }}
       >
         <KeyboardAvoidingView
           behavior={Platform.OS === 'ios' ? 'padding' : undefined}
@@ -628,14 +867,19 @@ const PostDetailScreen = () => {
         >
           <View style={styles.modalContent}>
             <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>添加评论</Text>
-              <TouchableOpacity onPress={() => setShowCommentModal(false)}>
+              <Text style={styles.modalTitle}>
+                {replyingTo ? `回复 @${replyingTo.userName}` : '添加评论'}
+              </Text>
+              <TouchableOpacity onPress={() => {
+                setShowCommentModal(false);
+                setReplyingTo(null);
+              }}>
                 <Ionicons name="close" size={24} />
               </TouchableOpacity>
             </View>
             <TextInput
               style={styles.commentInputField}
-              placeholder="写下你的评论..."
+              placeholder={replyingTo ? `回复 @${replyingTo.userName}...` : "写下你的评论..."}
               value={commentText}
               onChangeText={setCommentText}
               multiline
@@ -651,6 +895,9 @@ const PostDetailScreen = () => {
                 const payload = {
                   content: commentText.trim(),
                   authorUuid: profileData?.uuid,
+                  // 新增回复相关字段
+                  parentCommentUuid: replyingTo?.parentCommentUuid,
+                  replyToUserUuid: replyingTo?.replyToUserUuid,
                 };
                 try {
                   const res = await fetch(
@@ -668,16 +915,40 @@ const PostDetailScreen = () => {
                     authorUuid: data.author.uuid,
                     user: data.author.nickname,
                     avatar: data.author.profilePictureUrl
-                      ? `${FULL_BASE_URL}${data.author.profilePictureUrl}?t=${Date.now()}`
+                      ? `${FULL_BASE_URL}${data.author.profilePictureUrl}`
                       : 'https://via.placeholder.com/100x100.png?text=No+Avatar',
                     content: data.content,
                     time: new Date(data.createdAt).toLocaleString(),
                     likes: 0,
                     liked: false,
+                    replyCount: 0,
+                    parentCommentUuid: data.parentCommentUuid,
+                    replyToUser: data.replyToUser,
                   };
-                  setComments(prev => [newComment, ...prev]);
+                  
+                  if (replyingTo) {
+                    // 如果是回复，更新对应评论的回复列表
+                    setComments(prev =>
+                      prev.map(c => {
+                        if (c.id === replyingTo.parentCommentUuid) {
+                          return {
+                            ...c,
+                            replyCount: c.replyCount + 1,
+                            replies: [...(c.replies || []), newComment],
+                          };
+                        }
+                        return c;
+                      })
+                    );
+                    setShowReplies(prev => new Set(prev).add(replyingTo.parentCommentUuid || ''));
+                  } else {
+                    // 如果是新评论，添加到列表顶部
+                    setComments(prev => [newComment, ...prev]);
+                  }
+                  
                   setCommentText('');
                   setShowCommentModal(false);
+                  setReplyingTo(null);
                   setPost(prev =>
                     prev
                       ? { ...prev, commentCount: prev.commentCount + 1 }

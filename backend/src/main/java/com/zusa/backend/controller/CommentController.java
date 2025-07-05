@@ -23,18 +23,29 @@ public class CommentController {
 
     private final CommentService commentService;
 
-    /** 评论列表，带分页、排序及点赞状态 */
+    /** 获取帖子的一级评论列表 */
     @GetMapping("/posts/{postUuid}/comments")
-    public Page<CommentDto> list(
+    public Page<CommentDto> listTopLevel(
             @PathVariable UUID postUuid,
             @RequestParam(name = "sortType", defaultValue = "LATEST") CommentService.SortType sortType,
             @RequestParam(name = "userUuid", required = false) UUID userUuid,
+            @RequestParam(name = "loadReplies", defaultValue = "false") boolean loadReplies,
             Pageable pageable
     ) {
-        return commentService.list(postUuid, sortType, pageable, userUuid);
+        return commentService.listTopLevel(postUuid, sortType, pageable, userUuid, loadReplies);
     }
 
-    /** 新增评论 */
+    /** 获取某评论的回复列表 */
+    @GetMapping("/comments/{commentUuid}/replies")
+    public Page<CommentDto> listReplies(
+            @PathVariable UUID commentUuid,
+            @RequestParam(name = "userUuid", required = false) UUID userUuid,
+            Pageable pageable
+    ) {
+        return commentService.listReplies(commentUuid, pageable, userUuid);
+    }
+
+    /** 新增评论或回复 */
     @PostMapping("/posts/{postUuid}/comments")
     public ResponseEntity<CommentDto> add(
             @PathVariable UUID postUuid,
@@ -44,7 +55,14 @@ public class CommentController {
         UUID author = principal != null
                 ? UUID.fromString(principal.getUsername())
                 : req.getAuthorUuid();
-        return ResponseEntity.ok(commentService.add(postUuid, author, req.getContent()));
+
+        return ResponseEntity.ok(commentService.add(
+                postUuid,
+                author,
+                req.getContent(),
+                req.getParentCommentUuid(),
+                req.getReplyToUserUuid()
+        ));
     }
 
     /** 点赞 / 取消点赞 */
@@ -63,7 +81,7 @@ public class CommentController {
         return ResponseEntity.ok(commentService.toggleLike(commentUuid, me));
     }
 
-    /** 单条评论详情，带点赞状态 */
+    /** 单条评论详情（包含回复） */
     @GetMapping("/comments/{commentUuid}")
     public ResponseEntity<CommentDto> get(
             @PathVariable UUID commentUuid,

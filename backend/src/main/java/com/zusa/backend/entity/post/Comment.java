@@ -21,6 +21,7 @@ import java.util.UUID;
         indexes = {
                 @Index(columnList = "post_id"),
                 @Index(columnList = "author_id"),
+                @Index(columnList = "parent_id"),
                 @Index(columnList = "createdAt")
         }
 )
@@ -50,11 +51,32 @@ public class Comment {
     @Column(nullable = false)
     private String content;
 
+    /** 父评论（被回复的评论） */
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "parent_id")
+    private Comment parentComment;
+
+    /** 被回复的用户（便于显示@某人） */
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "reply_to_user_id")
+    private User replyToUser;
+
+    /** 子评论列表 */
+    @Builder.Default
+    @OneToMany(mappedBy = "parentComment", cascade = CascadeType.ALL, orphanRemoval = true)
+    private List<Comment> replies = new ArrayList<>();
+
+    /** 回复数量 */
+    @Column(nullable = false)
+    @Builder.Default
+    private long replyCount = 0L;
+
     /** 点赞数，可按最热排序 */
     @Column(nullable = false)
-    private long likeCount = 0;
+    @Builder.Default
+    private long likeCount = 0L;
 
-    /** 新增：级联管理评论点赞 */
+    /** 级联管理评论点赞 */
     @Builder.Default
     @OneToMany(
             mappedBy = "comment",

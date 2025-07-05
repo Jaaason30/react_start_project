@@ -5,6 +5,7 @@ import com.zusa.backend.dto.user.UserSummaryDto;
 import lombok.Data;
 
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.UUID;
 
 @Data
@@ -15,6 +16,12 @@ public class CommentDto {
     private long likeCount;
     private LocalDateTime createdAt;
 
-    // 新增：当前用户是否已点赞
+    // 回复相关字段
+    private UUID parentCommentUuid;
+    private UserSummaryDto replyToUser;
+    private long replyCount;
+    private List<CommentDto> replies;
+
+    // 当前用户是否已点赞
     private boolean likedByCurrentUser;
 }
