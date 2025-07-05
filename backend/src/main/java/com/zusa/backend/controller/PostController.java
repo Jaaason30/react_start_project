@@ -132,9 +132,13 @@ public class PostController {
     @DeleteMapping("/posts/{uuid}")
     public void delete(
             @PathVariable UUID uuid,
+            @RequestParam(required = false) UUID operatorUuid,
             @AuthenticationPrincipal UserDetails principal) {
 
-        UUID me = UUID.fromString(principal.getUsername());
+        UUID me = (principal != null)
+                ? UUID.fromString(principal.getUsername())
+                : operatorUuid;
+
         postService.deletePost(uuid, me);
     }
 

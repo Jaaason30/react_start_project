@@ -1,3 +1,5 @@
+// src/main/java/com/zusa/backend/entity/post/Comment.java
+
 package com.zusa.backend.entity.post;
 
 import com.zusa.backend.entity.BaseEntity;
@@ -9,6 +11,8 @@ import org.springframework.data.annotation.LastModifiedDate;
 import org.springframework.data.jpa.domain.support.AuditingEntityListener;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.UUID;
 
 @Entity
@@ -49,6 +53,16 @@ public class Comment {
     /** 点赞数，可按最热排序 */
     @Column(nullable = false)
     private long likeCount = 0;
+
+    /** 新增：级联管理评论点赞 */
+    @Builder.Default
+    @OneToMany(
+            mappedBy = "comment",
+            cascade = CascadeType.ALL,
+            orphanRemoval = true,
+            fetch = FetchType.LAZY
+    )
+    private List<CommentLike> likes = new ArrayList<>();
 
     /* === 审计字段 === */
     @CreatedDate

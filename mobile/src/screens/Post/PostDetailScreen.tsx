@@ -95,6 +95,31 @@ const PostDetailScreen = () => {
   const [isCollected, setIsCollected] = useState(false);
   const [isFollowing, setIsFollowing] = useState(false);
 
+  /* ========== 删除帖子 ========== */
+  const handleDeletePost = () => {
+    Alert.alert('确认删除', '删除后无法恢复，确定删除此帖子吗？', [
+      { text: '取消', style: 'cancel' },
+      {
+        text: '删除',
+        style: 'destructive',
+        onPress: async () => {
+          try {
+            await fetch(
+              `${FULL_BASE_URL}/api/posts/${post!.uuid}` +
+                `?operatorUuid=${profileData.uuid}`,
+              { method: 'DELETE', credentials: 'include' }
+            );
+            Alert.alert('已删除', '帖子已删除');
+            navigation.goBack();
+          } catch (err) {
+            console.error('[❌ deletePost]', err);
+            Alert.alert('删除失败', '请稍后重试');
+          }
+        },
+      },
+    ]);
+  };
+
   /* ========== 1) 获取帖子详情（带关注状态） ========== */
   const fetchPostDetail = async () => {
     setLoading(true);
@@ -371,6 +396,12 @@ const PostDetailScreen = () => {
               <TouchableOpacity onPress={() => navigation.goBack()}>
                 <Ionicons name="chevron-back" size={24} />
               </TouchableOpacity>
+              {/* 删除按钮 - 仅作者可见 */}
+              {profileData?.uuid === post.authorUuid && (
+                <TouchableOpacity onPress={handleDeletePost} style={{ marginLeft: 16 }}>
+                  <Ionicons name="trash-outline" size={24} color="#d81e06" />
+                </TouchableOpacity>
+              )}
               <FastImage
                 source={{ 
                   uri: post.authorAvatar,
@@ -382,16 +413,19 @@ const PostDetailScreen = () => {
                 key={`avatar-${imageTimestamp}`}
               />
               <Text style={styles.authorName}>{post.author}</Text>
-              <TouchableOpacity
-                style={isFollowing ? styles.unfollowBtn : styles.followBtn}
-                onPress={toggleFollow}
-              >
-                <Text
-                  style={isFollowing ? styles.unfollowText : styles.followText}
+              {/* 关注按钮 - 非作者本人时显示 */}
+              {profileData?.uuid !== post.authorUuid && (
+                <TouchableOpacity
+                  style={isFollowing ? styles.unfollowBtn : styles.followBtn}
+                  onPress={toggleFollow}
                 >
-                  {isFollowing ? '取消关注' : '关注'}
-                </Text>
-              </TouchableOpacity>
+                  <Text
+                    style={isFollowing ? styles.unfollowText : styles.followText}
+                  >
+                    {isFollowing ? '取消关注' : '关注'}
+                  </Text>
+                </TouchableOpacity>
+              )}
             </View>
 
             {/* 图片轮播 */}
