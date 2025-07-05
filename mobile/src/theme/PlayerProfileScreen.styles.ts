@@ -1,121 +1,202 @@
+// src/theme/PlayerProfileScreen.styles.ts
+
 import { StyleSheet, Dimensions } from 'react-native';
 
 const { width } = Dimensions.get('window');
-
-const GRID_GAP   = 8;
-const CARD_SIZE  = (width - GRID_GAP * 3) / 2;
-
-/* 横向照片墙尺寸 */
-const PHOTO_HEIGHT      = 160;
-const PHOTO_V_PADDING   = 12;
-const PHOTO_WRAPPER_H   = PHOTO_HEIGHT + PHOTO_V_PADDING * 2;
+const PHOTO_SIZE = (width - 32 - 12) / 3;
 
 export const styles = StyleSheet.create({
-  /* ===== 基础 ===== */
-  container: { flex: 1, backgroundColor: '#000' },
+  /* ===== Container ===== */
+  container: {
+    flex: 1,
+    backgroundColor: '#fff',
+  },
+  scrollContainer: {
+    flex: 0,
+  },
+  postGridContainer: {
+    flex: 1,
+    backgroundColor: '#fff',
+  },
 
-  /* ===== 顶部栏 ===== */
-  topBar: {
+  /* ===== Identity Section ===== */
+  identitySection: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 16,
+    backgroundColor: '#fff',
+  },
+  identityText: {
+    marginLeft: 16,
+    justifyContent: 'center',
+  },
+  avatar: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    borderWidth: 2,
+    borderColor: '#fff',
+    backgroundColor: '#eee',
+  },
+  username: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#222',
+  },
+  userId: {
+    color: '#888',
+    fontSize: 12,
+    marginTop: 4,
+  },
+
+  /* ===== Stats Row ===== */
+  statsRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    paddingVertical: 12,
+    backgroundColor: '#fff',
+  },
+  statItem: {
+    alignItems: 'center',
+  },
+  statNumber: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#222',
+  },
+  statLabel: {
+    color: '#888',
+    fontSize: 12,
+    marginTop: 2,
+  },
+
+  /* ===== Album Preview ===== */
+  albumScroll: {
+    paddingHorizontal: 16,
+    marginVertical: 12,
+    backgroundColor: '#fff',
+  },
+  albumItem: {
+    marginRight: 12,
+  },
+  albumImage: {
+    width: PHOTO_SIZE,
+    height: PHOTO_SIZE,
+    borderRadius: 8,
+    backgroundColor: '#ddd',
+  },
+
+  /* ===== Section Header ===== */
+  sectionHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    padding: 12,
-    backgroundColor: '#111',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    backgroundColor: '#fff',
   },
-
-  /* ===== 资料区 ===== */
-  profileHeader: { alignItems: 'center', paddingVertical: 16 },
-  avatar: { width: 96, height: 96, borderRadius: 48, borderWidth: 2, borderColor: '#ff00cc' },
-  nickname: { fontSize: 20, color: '#fff', fontWeight: 'bold', marginTop: 8 },
-  userId: { color: '#aaa', fontSize: 12 },
-  tags: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 6 },
-  tag: {
-    color: '#0ff',
-    fontSize: 12,
-    backgroundColor: '#222',
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 6,
-  },
-  bio: { marginTop: 6, color: '#ccc', fontSize: 13 },
-
-  /* ===== 相册（横向照片墙） ===== */
-  albumScroll: { paddingHorizontal: 12, marginVertical: 12 },
-  photoWrapper: { height: PHOTO_WRAPPER_H, paddingVertical: PHOTO_V_PADDING },
-  photoScrollContent: { paddingHorizontal: 12 },
-  photoItem: { width: 120, height: PHOTO_HEIGHT, borderRadius: 12, marginRight: 10 },
-
-  /* ===== Tab 栏（如需用） ===== */
-  tabBar: { flexDirection: 'row', justifyContent: 'center', gap: 20, marginVertical: 16 },
-  tabActive: {
-    color: '#ff00cc',
-    fontWeight: 'bold',
+  sectionTitle: {
     fontSize: 16,
-    borderBottomWidth: 2,
-    borderColor: '#ff00cc',
-    paddingBottom: 4,
+    fontWeight: 'bold',
+    color: '#222',
   },
-  tabInactive: { color: '#aaa', fontSize: 16 },
+  seeAllButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  seeAllText: {
+    fontSize: 14,
+    color: '#888',
+  },
 
-  /* ===== 动态网格（预留） ===== */
-  gridItem: { width: CARD_SIZE, backgroundColor: '#111', borderRadius: 10, overflow: 'hidden' },
-  gridImage: { width: '100%', height: CARD_SIZE },
-  gridText: { color: '#fff', fontSize: 12, padding: 6 },
+  /* ===== Bio ===== */
+  bioContainer: {
+    paddingHorizontal: 16,
+    marginBottom: 12,
+  },
+  bio: {
+    color: '#333',
+    fontSize: 13,
+    lineHeight: 18,
+  },
 
-  /* ===== 帖子列表 ===== */
-  postListContainer: { paddingBottom: 72 },
-  emptyListText: { textAlign: 'center', color: '#888', marginTop: 32 },
-  postCard: {
-    marginHorizontal: 16,
-    marginTop: 16,
-    backgroundColor: '#111',
-    borderRadius: 10,
+  /* ===== Post Card ===== */
+  card: {
+    margin: 16,
+    backgroundColor: '#f9f9f9',
+    borderRadius: 8,
     overflow: 'hidden',
   },
-  postCover: { width: '100%', height: 200 },
-  postInfo: { padding: 12 },
-  postTitle: { fontSize: 16, fontWeight: 'bold', color: '#fff' },
-  postTime: { color: '#888', marginTop: 4, fontSize: 12 },
-  badgeOngoing: {
-    position: 'absolute',
-    top: 12,
-    right: 12,
-    backgroundColor: '#555',
-    borderRadius: 4,
-    paddingHorizontal: 6,
-    paddingVertical: 2,
+  cardImage: {
+    width: '100%',
+    height: 200,
   },
-  badgeHot: {
-    position: 'absolute',
-    top: 12,
-    right: 12,
-    backgroundColor: '#f33',
-    borderRadius: 4,
-    paddingHorizontal: 6,
-    paddingVertical: 2,
+  cardTitle: {
+    fontWeight: 'bold',
+    fontSize: 16,
+    color: '#222',
+    marginTop: 8,
+    paddingHorizontal: 12,
   },
-  badgeText: { color: '#fff', fontSize: 12 },
-
-  /* ===== 底部导航栏 ===== */
-  bottomBar: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
-    height: 56,
+  cardFooter: {
     flexDirection: 'row',
-    backgroundColor: '#fff',
-    borderTopColor: '#eee',
-    borderTopWidth: StyleSheet.hairlineWidth,
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
   },
-  bottomItem: { flex: 1, justifyContent: 'center', alignItems: 'center', paddingVertical: 4 },
-  bottomLabel: { fontSize: 12, color: '#222' },
-  bottomLabelActive: { color: '#d81e06' },
+  author: {
+    fontSize: 12,
+    color: '#555',
+  },
+  likesRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  likesText: {
+    marginLeft: 4,
+    fontSize: 12,
+    color: '#888',
+  },
+  debugUrl: {
+    fontSize: 10,
+    color: '#aaa',
+    paddingHorizontal: 12,
+    marginBottom: 8,
+  },
 
   /* ===== Loading / Error ===== */
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    padding: 16,
+    backgroundColor: '#fff',
+  },
+
+  /* ===== Bottom Navigation ===== */
+  bottomNav: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    paddingVertical: 8,
+    borderTopWidth: 1,
+    borderColor: '#eee',
+    backgroundColor: '#fff',
+  },
+  navItem: {
+    alignItems: 'center',
+  },
+  navLabel: {
+    fontSize: 12,
+    color: '#222',
+    marginTop: 2,
+  },
+  navLabelActive: {
+    color: '#d81e06',
+  },
+
+  /* ===== Post Feed (optional padding) ===== */
+  postListContainer: {
+    paddingBottom: 72,
+    backgroundColor: '#fff',
   },
 });
