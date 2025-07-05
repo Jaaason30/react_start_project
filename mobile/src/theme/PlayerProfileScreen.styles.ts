@@ -1,15 +1,27 @@
-// src/theme/PlayerProfileScreen.styles.ts
-
 import { StyleSheet, Dimensions } from 'react-native';
 
 const { width } = Dimensions.get('window');
 const PHOTO_SIZE = (width - 32 - 12) / 3;
 
 export const styles = StyleSheet.create({
-  /* ===== Container ===== */
   container: {
     flex: 1,
     backgroundColor: '#fff',
+  },
+  topBar: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    backgroundColor: '#fff',
+    borderBottomWidth: 1,
+    borderBottomColor: '#eee',
+  },
+  headerTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#222',
   },
   scrollContainer: {
     flex: 0,
@@ -18,8 +30,6 @@ export const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#fff',
   },
-
-  /* ===== Identity Section ===== */
   identitySection: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -48,8 +58,6 @@ export const styles = StyleSheet.create({
     fontSize: 12,
     marginTop: 4,
   },
-
-  /* ===== Stats Row ===== */
   statsRow: {
     flexDirection: 'row',
     justifyContent: 'space-around',
@@ -69,8 +77,6 @@ export const styles = StyleSheet.create({
     fontSize: 12,
     marginTop: 2,
   },
-
-  /* ===== Album Preview ===== */
   albumScroll: {
     paddingHorizontal: 16,
     marginVertical: 12,
@@ -85,8 +91,6 @@ export const styles = StyleSheet.create({
     borderRadius: 8,
     backgroundColor: '#ddd',
   },
-
-  /* ===== Section Header ===== */
   sectionHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -108,8 +112,6 @@ export const styles = StyleSheet.create({
     fontSize: 14,
     color: '#888',
   },
-
-  /* ===== Bio ===== */
   bioContainer: {
     paddingHorizontal: 16,
     marginBottom: 12,
@@ -119,8 +121,6 @@ export const styles = StyleSheet.create({
     fontSize: 13,
     lineHeight: 18,
   },
-
-  /* ===== Post Card ===== */
   card: {
     margin: 16,
     backgroundColor: '#f9f9f9',
@@ -164,16 +164,12 @@ export const styles = StyleSheet.create({
     paddingHorizontal: 12,
     marginBottom: 8,
   },
-
-  /* ===== Loading / Error ===== */
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
     backgroundColor: '#fff',
   },
-
-  /* ===== Bottom Navigation ===== */
   bottomNav: {
     flexDirection: 'row',
     justifyContent: 'space-around',
@@ -193,8 +189,6 @@ export const styles = StyleSheet.create({
   navLabelActive: {
     color: '#d81e06',
   },
-
-  /* ===== Post Feed (optional padding) ===== */
   postListContainer: {
     paddingBottom: 72,
     backgroundColor: '#fff',

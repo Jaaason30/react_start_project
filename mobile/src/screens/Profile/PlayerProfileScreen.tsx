@@ -1,5 +1,3 @@
-// src/screens/PlayerProfileScreen.tsx
-
 import React, { useEffect, useState } from 'react';
 import {
   View,
@@ -33,6 +31,7 @@ type RootStackParamList = {
   Discover: undefined;
   PlayerProfile: { userId?: string };
   PostDetail: { post: any };
+  EditProfile: undefined;
 };
 
 type NavType = NativeStackNavigationProp<RootStackParamList>;
@@ -61,9 +60,7 @@ export default function PlayerProfileScreen() {
 
     const fetchProfile = async () => {
       try {
-        const resp = await fetch(
-          `${FULL_BASE_URL}/api/user/profile?userUuid=${uuid}`
-        );
+        const resp = await fetch(`${FULL_BASE_URL}/api/user/profile?userUuid=${uuid}`);
         const data = await resp.json();
         console.log('[FetchProfile]', data);
         setUserData(data);
@@ -98,8 +95,8 @@ export default function PlayerProfileScreen() {
     const coverUrl = item.coverUrl
       ? getFormattedImageUrl(item.coverUrl)
       : item.images && item.images.length > 0
-        ? getFormattedImageUrl(item.images[0].url)
-        : 'https://via.placeholder.com/400x600.png?text=No+Image';
+      ? getFormattedImageUrl(item.images[0].url)
+      : 'https://via.placeholder.com/400x600.png?text=No+Image';
 
     const postWithCover = { ...item, coverUrl };
 
@@ -114,9 +111,7 @@ export default function PlayerProfileScreen() {
           style={styles.cardImage}
           resizeMode={FastImage.resizeMode.cover}
         />
-        <Text style={styles.cardTitle} numberOfLines={2}>
-          {item.title ?? '（无标题）'}
-        </Text>
+        <Text style={styles.cardTitle} numberOfLines={2}>{item.title ?? '（无标题）'}</Text>
         <View style={styles.cardFooter}>
           <Text style={styles.author}>{userData?.nickname || '匿名'}</Text>
           <View style={styles.likesRow}>
@@ -138,6 +133,14 @@ export default function PlayerProfileScreen() {
 
   return (
     <SafeAreaView style={styles.container}>
+      {/* Top bar with settings icon */}
+      <View style={styles.topBar}>
+        <Text style={styles.headerTitle}>我的资料</Text>
+        <TouchableOpacity onPress={() => navigation.navigate('EditProfile')}>
+          <Ionicons name="settings-outline" size={24} color="#222" />
+        </TouchableOpacity>
+      </View>
+
       {/* Identity Section */}
       <View style={styles.identitySection}>
         <TouchableOpacity>
@@ -202,9 +205,7 @@ export default function PlayerProfileScreen() {
             style={styles.navItem}
           >
             <Ionicons name={t.icon} size={24} color={activeBottom === t.key ? '#d81e06' : '#222'} />
-            <Text style={[styles.navLabel, activeBottom === t.key && styles.navLabelActive]}>
-              {t.label}
-            </Text>
+            <Text style={[styles.navLabel, activeBottom === t.key && styles.navLabelActive]}>{t.label}</Text>
           </TouchableOpacity>
         ))}
       </View>

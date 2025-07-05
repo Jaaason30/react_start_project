@@ -25,8 +25,6 @@ public interface UserMapper {
             expression = "java(user.getPreferredVenues().stream().map(v -> v.getId()).toList())")
     @Mapping(target = "genderPreferenceIds",
             expression = "java(user.getGenderPreferences().stream().map(Gender::getId).toList())")
-    @Mapping(target = "followerCount", expression = "java(user.getFollowers() != null ? user.getFollowers().size() : 0)")
-    @Mapping(target = "followingCount", expression = "java(user.getFollowing() != null ? user.getFollowing().size() : 0)")
     @Mapping(target = "dates", ignore = true)
     @Mapping(target = "city", ignore = true)
     @Mapping(target = "gender", ignore = true)

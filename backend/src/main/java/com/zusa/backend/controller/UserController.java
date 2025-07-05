@@ -1,4 +1,4 @@
-// ================ UserController.java ================
+// src/main/java/com/zusa/backend/controller/UserController.java
 package com.zusa.backend.controller;
 
 import com.zusa.backend.dto.user.UserDto;
@@ -21,13 +21,19 @@ public class UserController {
 
     // 原有接口……
     @GetMapping("/profile")
-    public ResponseEntity<UserDto> getProfile(@RequestParam UUID userUuid) {
+    public ResponseEntity<UserDto> getProfileByUuid(@RequestParam UUID userUuid) {
         return ResponseEntity.ok(userService.getUserProfileByUuid(userUuid));
     }
 
+    /** 新增：根据 shortId 查询用户 */
+    @GetMapping("/profile/short/{shortId}")
+    public ResponseEntity<UserDto> getProfileByShortId(@PathVariable Long shortId) {
+        return ResponseEntity.ok(userService.getUserProfileByShortId(shortId));
+    }
+
     @PatchMapping("/profile")
-    public ResponseEntity<Void> updateProfile(@RequestBody UserDto req,
-                                              @RequestParam UUID userUuid) {
+    public ResponseEntity<Void> updateProfilePartially(@RequestBody UserDto req,
+                                                       @RequestParam UUID userUuid) {
         userService.updateProfilePartially(req, userUuid);
         return ResponseEntity.ok().build();
     }

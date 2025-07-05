@@ -1,4 +1,3 @@
-// App.tsx
 import React, { useState } from 'react';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { NavigationContainer } from '@react-navigation/native';
@@ -11,6 +10,7 @@ import DashboardScreen from './screens/DashboardScreen';
 import SeatOverviewScreen from './screens/SeatOverviewScreen';
 import SeatPageScreen from './screens/SeatPageScreen';
 import PlayerProfileScreen from './screens/Profile/PlayerProfileScreen';
+import EditProfileScreen from './screens/Profile/EditProfileScreen'; 
 import DiscoverScreen from './screens/Post/DiscoverScreen';
 import PostDetailScreen from './screens/Post/PostDetailScreen';
 import PostCreationScreen from './screens/Post/PostCreationScreen';
@@ -28,7 +28,7 @@ export type RootStackParamList = {
   Login: undefined;
   Dashboard: undefined;
   SeatOverview: undefined;
-  SeatPage: undefined;
+  SeatPage: { id: string };
   Discover: undefined;
   Search: undefined;
   PostDetail: { post: { uuid: string } };
@@ -41,6 +41,7 @@ export type RootStackParamList = {
   Step5Screen: undefined;
   Step6Screen: undefined;
   PlayerProfile: undefined;
+  EditProfile: undefined; // ✅ 补充
 };
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -60,13 +61,11 @@ export default function App() {
             screenOptions={{ headerShown: false }}
           >
             <Stack.Screen name="Register" component={RegisterScreen} />
-
             <Stack.Screen name="Login">
               {(props) => (
                 <LoginScreen {...props} onLoginSuccess={handleLoginSuccess} />
               )}
             </Stack.Screen>
-
             <Stack.Screen name="Dashboard">
               {(props) =>
                 user ? (
@@ -76,8 +75,6 @@ export default function App() {
                 )
               }
             </Stack.Screen>
-
-            {/* 其余页面保持不变 */}
             <Stack.Screen name="SeatOverview" component={SeatOverviewScreen} />
             <Stack.Screen name="SeatPage" component={SeatPageScreen} />
             <Stack.Screen name="Discover" component={DiscoverScreen} />
@@ -92,6 +89,7 @@ export default function App() {
             <Stack.Screen name="Step5Screen" component={Step5Screen} />
             <Stack.Screen name="Step6Screen" component={Step6Screen} />
             <Stack.Screen name="PlayerProfile" component={PlayerProfileScreen} />
+            <Stack.Screen name="EditProfile" component={EditProfileScreen} />
           </Stack.Navigator>
         </NavigationContainer>
       </UserProfileProvider>
