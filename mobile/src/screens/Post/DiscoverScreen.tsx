@@ -1,6 +1,6 @@
 // src/screens/DiscoverScreen.tsx
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect,useCallback} from 'react';
 import {
   View,
   Text,
@@ -37,10 +37,9 @@ type RootStackParamList = {
   PostDetail: { post: any };
 };
 
-type DiscoverNav = NativeStackNavigationProp<RootStackParamList>;
+type DiscoverNav = NativeStackNavigationProp<RootStackParamList, 'Discover'>;
 
 const { width } = Dimensions.get('window');
-const STATUS_BAR = Platform.OS === 'android' ? StatusBar.currentHeight ?? 0 : 0;
 
 type Banner = { id: string; uri: string };
 const mockBanners: Banner[] = [
@@ -65,19 +64,33 @@ export default function DiscoverScreen() {
   const [posts, setPosts] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    (async () => {
-      try {
-        const res  = await fetch(`${FULL_BASE_URL}/api/posts/feed?page=0&size=20`);
-        const data = await res.json();
-        setPosts(data.content ?? []);
-      } catch (err) {
-        console.error('❌ Fetch posts error:', err);
-      } finally {
-        setLoading(false);
-      }
-    })();
+  // 新增下拉刷新状态
+  const [refreshing, setRefreshing] = useState(false);
+
+  // 抽取为可重用的拉取函数
+  const fetchPosts = useCallback(async () => {
+    try {
+      const res = await fetch(`${FULL_BASE_URL}/api/posts/feed?page=0&size=20`);
+      const data = await res.json();
+      setPosts(data.content ?? []);
+    } catch (err) {
+      console.error('❌ Fetch posts error:', err);
+    } finally {
+      setLoading(false);
+    }
   }, []);
+
+  // 初次加载
+  useEffect(() => {
+    fetchPosts();
+  }, [fetchPosts]);
+
+  // 下拉刷新处理
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    await fetchPosts();
+    setRefreshing(false);
+  }, [fetchPosts]);
 
   const renderPost = ({ item }: { item: any }) => {
     const coverUrl = item.coverUrl
@@ -105,9 +118,8 @@ export default function DiscoverScreen() {
             <Text style={styles.likesText}>{item.likeCount ?? 0}</Text>
           </View>
         </View>
-        <Text style={styles.debugUrl} numberOfLines={1}>
-          {coverUrl}
-        </Text>
+        {/* 可选：调试用 URL */}
+        {/* <Text style={styles.debugUrl} numberOfLines={1}>{coverUrl}</Text> */}
       </TouchableOpacity>
     );
   };
@@ -116,7 +128,7 @@ export default function DiscoverScreen() {
     <View style={styles.container}>
       <StatusBar barStyle="dark-content" />
 
-      {/* 顶部 Tab + 按钮 */}
+      {/* 顶部 Tab + 操作按钮 */}
       <View style={styles.topBar}>
         <View style={styles.topTabs}>
           {TOP_TABS.map(tab => (
@@ -125,12 +137,7 @@ export default function DiscoverScreen() {
               onPress={() => setActiveTopTab(tab)}
               style={styles.tabTouch}
             >
-              <Text
-                style={[
-                  styles.tabText,
-                  activeTopTab === tab && styles.tabActive,
-                ]}
-              >
+              <Text style={[styles.tabText, activeTopTab === tab && styles.tabActive]}>
                 {tab}
               </Text>
             </TouchableOpacity>
@@ -152,14 +159,12 @@ export default function DiscoverScreen() {
             </LinearGradient>
           </TouchableOpacity>
 
-          {/* <-- Search button now navigates to SearchScreen */}
           <Ionicons
             name="search-outline"
             size={24}
             style={styles.iconBtn}
             onPress={() => navigation.navigate('Search')}
           />
-
           <Ionicons
             name="add-outline"
             size={28}
@@ -169,13 +174,9 @@ export default function DiscoverScreen() {
         </View>
       </View>
 
-      {/* 帖子列表 */}
-      {loading ? (
-        <ActivityIndicator
-          size="large"
-          color="#d81e06"
-          style={{ marginTop: 50 }}
-        />
+      {/* 帖子列表 with 下拉刷新 */}
+      {loading && !refreshing ? (
+        <ActivityIndicator size="large" color="#d81e06" style={{ marginTop: 50 }} />
       ) : (
         <FlatList
           data={posts}
@@ -187,6 +188,14 @@ export default function DiscoverScreen() {
           initialNumToRender={6}
           maxToRenderPerBatch={6}
           windowSize={9}
+          contentContainerStyle={styles.listContent}
+          // 添加下拉刷新属性
+          refreshing={refreshing}
+          onRefresh={onRefresh}
+          // 如果你想用 RefreshControl 也可以这样写：
+          // refreshControl={
+          //   <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+          // }
           ListHeaderComponent={
             <View style={styles.bannerBox}>
               <ScrollView
@@ -215,16 +224,12 @@ export default function DiscoverScreen() {
                 {mockBanners.map((_, i) => (
                   <View
                     key={i}
-                    style={[
-                      styles.dot,
-                      bannerIndex === i && styles.dotActive,
-                    ]}
+                    style={[styles.dot, bannerIndex === i && styles.dotActive]}
                   />
                 ))}
               </View>
             </View>
           }
-          contentContainerStyle={styles.listContent}
         />
       )}
 
@@ -234,8 +239,8 @@ export default function DiscoverScreen() {
           <TouchableOpacity
             key={t.key}
             onPress={() => {
-              setActiveBottom(t.key);
               if (t.screen !== 'Discover') navigation.navigate(t.screen as any);
+              setActiveBottom(t.key);
             }}
             style={styles.bottomItem}
           >
@@ -244,12 +249,7 @@ export default function DiscoverScreen() {
               size={24}
               color={activeBottom === t.key ? '#d81e06' : '#222'}
             />
-            <Text
-              style={[
-                styles.bottomLabel,
-                activeBottom === t.key && styles.bottomLabelActive,
-              ]}
-            >
+            <Text style={[styles.bottomLabel, activeBottom === t.key && styles.bottomLabelActive]}>
               {t.label}
             </Text>
           </TouchableOpacity>
