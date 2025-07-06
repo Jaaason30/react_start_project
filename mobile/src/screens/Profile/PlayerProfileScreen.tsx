@@ -1,3 +1,5 @@
+// src/screens/PlayerProfileScreen.tsx
+
 import React, { useEffect, useState } from 'react';
 import {
   View,
@@ -49,7 +51,8 @@ type PostItem = {
 export default function PlayerProfileScreen() {
   const navigation = useNavigation<NavType>();
   const route = useRoute<RouteType>();
-  const { profileData } = useUserProfile();
+  const { profileData, avatarVersion } = useUserProfile();
+
   const [userData, setUserData] = useState<any | null>(null);
   const [posts, setPosts] = useState<PostItem[]>([]);
   const [activeBottom, setActiveBottom] = useState<typeof BOTTOM_TABS[number]['key']>('me');
@@ -62,7 +65,6 @@ export default function PlayerProfileScreen() {
       try {
         const resp = await fetch(`${FULL_BASE_URL}/api/user/profile?userUuid=${uuid}`);
         const data = await resp.json();
-        console.log('[FetchProfile]', data);
         setUserData(data);
       } catch (err) {
         console.error('[FetchProfile]', err);
@@ -74,9 +76,7 @@ export default function PlayerProfileScreen() {
         const url = `${FULL_BASE_URL}/api/posts/user/${uuid}?page=0&size=20`;
         const resp = await fetch(url, { credentials: 'include' });
         const data = await resp.json();
-        const list: PostItem[] = data.content || [];
-        console.log('[FetchPosts]', list);
-        setPosts(list);
+        setPosts(data.content || []);
       } catch (err) {
         console.error('[FetchPosts]', err);
       }
@@ -131,6 +131,14 @@ export default function PlayerProfileScreen() {
     );
   }
 
+  // 拼接带版本号的头像 URL
+  const avatarBase = userData.profilePictureUrl
+    ? `${FULL_BASE_URL}${userData.profilePictureUrl}`
+    : 'https://via.placeholder.com/200x200.png?text=No+Avatar';
+  const avatarUri = avatarVersion
+    ? `${avatarBase}?v=${avatarVersion}`
+    : avatarBase;
+
   return (
     <SafeAreaView style={styles.container}>
       {/* Top bar with settings icon */}
@@ -143,17 +151,13 @@ export default function PlayerProfileScreen() {
 
       {/* Identity Section */}
       <View style={styles.identitySection}>
-<TouchableOpacity>
-  <FastImage
-    source={{
-      uri: userData.profilePictureUrl
-        ? `${FULL_BASE_URL}${userData.profilePictureUrl}?t=${userData?.updatedAt ?? Date.now()}`
-        : 'https://via.placeholder.com/200x200.png?text=No+Avatar'
-    }}
-    style={styles.avatar}
-  />
-</TouchableOpacity>
-
+        <TouchableOpacity>
+          <FastImage
+            source={{ uri: avatarUri }}
+            style={styles.avatar}
+            resizeMode={FastImage.resizeMode.cover}
+          />
+        </TouchableOpacity>
         <View style={styles.identityText}>
           <Text style={styles.username}>{userData.nickname}</Text>
           <Text style={styles.userId}>ID: {userData.shortId ?? '未设置'}</Text>
@@ -180,6 +184,7 @@ export default function PlayerProfileScreen() {
               <FastImage
                 source={{ uri: FULL_BASE_URL + uri }}
                 style={styles.albumImage}
+                resizeMode={FastImage.resizeMode.cover}
               />
             </TouchableOpacity>
           ))}
@@ -205,8 +210,14 @@ export default function PlayerProfileScreen() {
             }}
             style={styles.navItem}
           >
-            <Ionicons name={t.icon} size={24} color={activeBottom === t.key ? '#d81e06' : '#222'} />
-            <Text style={[styles.navLabel, activeBottom === t.key && styles.navLabelActive]}>{t.label}</Text>
+            <Ionicons
+              name={t.icon}
+              size={24}
+              color={activeBottom === t.key ? '#d81e06' : '#222'}
+            />
+            <Text style={[styles.navLabel, activeBottom === t.key && styles.navLabelActive]}>
+              {t.label}
+            </Text>
           </TouchableOpacity>
         ))}
       </View>

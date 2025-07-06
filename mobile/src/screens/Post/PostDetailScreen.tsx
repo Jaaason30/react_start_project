@@ -73,7 +73,7 @@ const PostDetailScreen = () => {
   const navigation = useNavigation();
   const route = useRoute<PostDetailRouteProp>();
   const { post: initialPost } = route.params;
-  const { profileData, refreshProfile } = useUserProfile();
+  const { profileData, refreshProfile,avatarVersion } = useUserProfile();
 
   const listRef = useRef<FlatList<CommentType>>(null);
   const [commentY, setCommentY] = useState(0);
@@ -137,7 +137,10 @@ const patchUrl = (url?: string) =>
     : url.startsWith('http')
     ? url
     : `${FULL_BASE_URL}${url}`;
-
+const patchProfileUrl = (url?: string) => {
+  const u = patchUrl(url);
+  return u ? (avatarVersion ? `${u}?v=${avatarVersion}` : u) : u;
+};
 // ── 修改 fetchPostDetail：去掉内部 setLoading，改用 patchUrl
 const fetchPostDetail = async () => {
   try {
@@ -149,7 +152,7 @@ const fetchPostDetail = async () => {
 
     // 用 patchUrl 处理头像和图片
     const avatarUrl =
-      patchUrl(data.author?.profilePictureUrl) ||
+      patchProfileUrl(data.author?.profilePictureUrl) ||
       'https://via.placeholder.com/200x200.png?text=No+Avatar';
     const processedImages = (data.images || []).map((img: any) =>
       patchUrl(img.url) || img.url
@@ -212,9 +215,8 @@ const fetchComments = async (pageNumber = 0) => {
         id: r.uuid,
         authorUuid: r.author.uuid,
         user: r.author.nickname,
-        avatar: r.author.profilePictureUrl
-          ? `${FULL_BASE_URL}${r.author.profilePictureUrl}`
-          : 'https://via.placeholder.com/100x100.png?text=No+Avatar',
+        avatar: patchProfileUrl(r.author.profilePictureUrl) ||
+                  'https://via.placeholder.com/100x100.png?text=No+Avatar',
         content: r.content,
         time: new Date(r.createdAt).toLocaleString(),
         likes: r.likeCount ?? 0,
@@ -230,9 +232,8 @@ const fetchComments = async (pageNumber = 0) => {
         id: c.uuid,
         authorUuid: c.author.uuid,
         user: c.author.nickname,
-        avatar: c.author.profilePictureUrl
-          ? `${FULL_BASE_URL}${c.author.profilePictureUrl}`
-          : 'https://via.placeholder.com/100x100.png?text=No+Avatar',
+        avatar: patchProfileUrl(c.author.profilePictureUrl) ||
+                'https://via.placeholder.com/100x100.png?text=No+Avatar',
         content: c.content,
         time: new Date(c.createdAt).toLocaleString(),
         likes: c.likeCount ?? 0,
@@ -284,9 +285,8 @@ const fetchReplies = async (commentId: string) => {
         id: r.uuid,
         authorUuid: r.author.uuid,
         user: r.author.nickname,
-        avatar: r.author.profilePictureUrl
-          ? `${FULL_BASE_URL}${r.author.profilePictureUrl}`
-          : 'https://via.placeholder.com/100x100.png?text=No+Avatar',
+        avatar: patchProfileUrl(r.author.profilePictureUrl) ||
+                  'https://via.placeholder.com/100x100.png?text=No+Avatar',
         content: r.content,
         time: new Date(r.createdAt).toLocaleString(),
         likes: r.likeCount,

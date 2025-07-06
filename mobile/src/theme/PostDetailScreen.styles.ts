@@ -92,6 +92,8 @@ export const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
     marginBottom: 12,
   },
   commentHeaderText: {
@@ -120,7 +122,9 @@ export const styles = StyleSheet.create({
   },
   commentItem: {
     flexDirection: 'row',
-    marginBottom: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    marginBottom: 4,
   },
   commentAvatar: {
     width: 36,
@@ -160,7 +164,6 @@ export const styles = StyleSheet.create({
   commentActions: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginTop: 4,
   },
   modalContainer: {
     flex: 1,
@@ -206,5 +209,73 @@ export const styles = StyleSheet.create({
     color: '#fff',
     fontWeight: 'bold',
     fontSize: 16,
+  },
+
+  // ========== 新增回复相关样式 ==========
+  
+  // 回复项容器
+  replyItem: {
+    marginLeft: 48,
+    backgroundColor: '#f8f8f8',
+    borderLeftWidth: 2,
+    borderLeftColor: '#e0e0e0',
+    paddingLeft: 8,
+  },
+  
+  // 回复头像（比主评论小）
+  replyAvatar: {
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+  },
+  
+  // 查看回复按钮
+  viewRepliesButton: {
+    marginTop: 8,
+    paddingVertical: 4,
+  },
+  
+  // 查看回复文本
+  viewRepliesText: {
+    color: '#007AFF',
+    fontSize: 13,
+    fontWeight: '500',
+  },
+  
+  // 回复对象提示文本
+  replyToText: {
+    color: '#666',
+    fontSize: 12,
+    marginBottom: 4,
+    fontStyle: 'italic',
+  },
+  
+  // 回复对象内联显示
+  replyToInline: {
+    color: '#666',
+    fontSize: 13,
+    marginLeft: 8,
+  },
+  
+  // 回复内容
+  replyContent: {
+    fontSize: 13,
+    color: '#333',
+    marginTop: 4,
+    lineHeight: 18,
+  },
+  
+  // 回复时间
+  replyTime: {
+    fontSize: 11,
+    color: '#999',
+    marginTop: 4,
+  },
+  
+  // 回复点赞数
+  replyLikes: {
+    fontSize: 11,
+    color: '#888',
+    marginLeft: 3,
   },
 });
