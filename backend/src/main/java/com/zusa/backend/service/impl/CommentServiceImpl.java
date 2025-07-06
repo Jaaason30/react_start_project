@@ -121,30 +121,110 @@ public class CommentServiceImpl implements CommentService {
 
     @Override
     @Transactional
-    public CommentDto add(UUID postUuid,
-                          UUID authorUuid,
-                          String content,
-                          UUID parentCommentUuid,
-                          UUID replyToUserUuid) {
-        // ... （保持不变，省略） ...
-        // mapper.toDto(c) 返回的 DTO 里会有正确的 createdAt, likeCount等字段
-        throw new UnsupportedOperationException("省略实现");
+    public CommentDto add(UUID postUuid, UUID authorUuid, String content, UUID parentCommentUuid, UUID replyToUserUuid) {
+        if (content == null || content.isBlank() || content.length() > 500) {
+            throw new IllegalArgumentException("评论内容不能为空且不超过 500 字");
+        }
+
+        var post = postRepo.findByUuid(postUuid)
+                .orElseThrow(() -> new EntityNotFoundException("Post not found"));
+        var author = userRepo.findByUuid(authorUuid)
+                .orElseThrow(() -> new EntityNotFoundException("User not found"));
+
+        Comment.CommentBuilder builder = Comment.builder()
+                .post(post)
+                .author(author)
+                .content(content.trim());
+
+        // 如果是回复
+        if (parentCommentUuid != null) {
+            Comment parentComment = commentRepo.findByUuid(parentCommentUuid)
+                    .orElseThrow(() -> new EntityNotFoundException("Parent comment not found"));
+
+            // 确保父评论属于同一个帖子
+            if (!parentComment.getPost().getUuid().equals(postUuid)) {
+                throw new IllegalArgumentException("父评论不属于该帖子");
+            }
+
+            builder.parentComment(parentComment);
+
+            // 更新父评论的回复数
+            parentComment.setReplyCount(parentComment.getReplyCount() + 1);
+
+            // 如果指定了被回复的用户
+            if (replyToUserUuid != null) {
+                User replyToUser = userRepo.findByUuid(replyToUserUuid)
+                        .orElseThrow(() -> new EntityNotFoundException("Reply to user not found"));
+                builder.replyToUser(replyToUser);
+            }
+        }
+
+        Comment c = builder.build();
+        commentRepo.save(c);
+
+        // 更新帖子评论数
+        post.setCommentCount(post.getCommentCount() + 1);
+
+        return mapper.toDto(c);
     }
 
     @Override
     @Transactional
     public CommentDto toggleLike(UUID commentUuid, UUID userUuid) {
-        // ... （保持不变，省略） ...
-        throw new UnsupportedOperationException("省略实现");
+        Comment c = commentRepo.findByUuid(commentUuid)
+                .orElseThrow(() -> new EntityNotFoundException("Comment not found"));
+        User u = userRepo.findByUuid(userUuid)
+                .orElseThrow(() -> new EntityNotFoundException("User not found"));
+
+        Optional<CommentLike> exist = likeRepo.findByComment_UuidAndUser_Uuid(commentUuid, userUuid);
+        if (exist.isPresent()) {
+            likeRepo.delete(exist.get());
+            c.setLikeCount(Math.max(0, c.getLikeCount() - 1));
+        } else {
+            likeRepo.save(CommentLike.builder().comment(c).user(u).build());
+            c.setLikeCount(c.getLikeCount() + 1);
+        }
+
+        CommentDto dto = mapper.toDto(c);
+        dto.setLikedByCurrentUser(!exist.isPresent());
+        return dto;
     }
 
     @Override
     @Transactional
     public void delete(UUID commentUuid, UUID authorUuid) {
-        // ... （保持不变，省略） ...
-        throw new UnsupportedOperationException("省略实现");
-    }
+        Comment c = commentRepo.findByUuid(commentUuid)
+                .orElseThrow(() -> new EntityNotFoundException("Comment not found"));
 
+        if (!c.getAuthor().getUuid().equals(authorUuid)) {
+            throw new SecurityException("只能删除自己的评论");
+        }
+
+        var post = c.getPost();
+
+        // 计算要删除的评论总数（包括所有子评论）
+        long totalToDelete = 1 + countAllReplies(c);
+
+        // 如果是子评论，更新父评论的回复数
+        if (c.getParentComment() != null) {
+            Comment parent = c.getParentComment();
+            parent.setReplyCount(Math.max(0, parent.getReplyCount() - 1));
+        }
+
+        // 删除评论（会级联删除所有子评论）
+        commentRepo.delete(c);
+
+        // 更新帖子评论数
+        post.setCommentCount(Math.max(0, post.getCommentCount() - totalToDelete));
+    }
+    private long countAllReplies(Comment comment) {
+        // 假设 Comment 实体中有一个 replies 字段，映射到所有直接回复
+        long count = comment.getReplies().size();
+        for (Comment reply : comment.getReplies()) {
+            count += countAllReplies(reply);
+        }
+        return count;
+    }
     /** 内部方法：批量设置 DTO 的 likedByCurrentUser 字段 */
     private void setLikedStatus(List<CommentDto> comments, UUID userUuid) {
         List<UUID> ids = comments.stream()
