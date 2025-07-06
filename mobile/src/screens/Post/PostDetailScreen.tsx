@@ -186,54 +186,67 @@ const fetchPostDetail = async () => {
 const fetchComments = async (pageNumber = 0) => {
   console.log(`[fetchComments] page: ${pageNumber}, sort: ${activeSort}`);
   try {
+    // 1) 根据 activeSort 映射后端枚举参数
     const sortParam = activeSort === '最新' ? 'LATEST' : 'HOT';
+
+    // 2) 构建请求 URL，携带 sortType、userUuid、分页和 loadReplies 参数
     const url =
       `${FULL_BASE_URL}/api/posts/${initialPost.uuid}/comments` +
-      `?sortType=${sortParam}&userUuid=${profileData.uuid}` +
+      `?sortType=${sortParam}` +
+      `&userUuid=${profileData.uuid}` +
       `&page=${pageNumber}&size=10&loadReplies=true`;
     console.log('[fetchComments] fetching from:', url);
+
+    // 3) 发起请求
     const res = await fetch(url, { credentials: 'include' });
     console.log('[fetchComments] response status:', res.status);
+
+    // 4) 解析返回
     const data = await res.json();
     console.log('[fetchComments] raw data:', JSON.stringify(data, null, 2));
 
-const newComments = (data.content || []).map((c: any) => {
-  const processedReplies = (c.replies || []).map((r: any) => ({
-    id: r.uuid,
-    authorUuid: r.author.uuid,
-    user: r.author.nickname,
-    avatar: r.author.profilePictureUrl
-      ? `${FULL_BASE_URL}${r.author.profilePictureUrl}`
-      : 'https://via.placeholder.com/100x100.png?text=No+Avatar',
-    content: r.content,
-    time: new Date(r.createdAt).toLocaleString(),
-    likes: r.likeCount ?? 0,
-    liked: !!r.likedByCurrentUser,
-    parentCommentUuid: r.parentCommentUuid,
-    replyToUser: r.replyToUser,
-    replyCount: 0,
-  }));
+    // 5) 处理主评论及其回复列表
+    const newComments: CommentType[] = (data.content || []).map((c: any) => {
+      // 5.1) 标准化处理回复数组
+      const processedReplies: CommentType[] = (c.replies || []).map((r: any) => ({
+        id: r.uuid,
+        authorUuid: r.author.uuid,
+        user: r.author.nickname,
+        avatar: r.author.profilePictureUrl
+          ? `${FULL_BASE_URL}${r.author.profilePictureUrl}`
+          : 'https://via.placeholder.com/100x100.png?text=No+Avatar',
+        content: r.content,
+        time: new Date(r.createdAt).toLocaleString(),
+        likes: r.likeCount ?? 0,
+        liked: !!r.likedByCurrentUser,
+        parentCommentUuid: r.parentCommentUuid,
+        replyToUser: r.replyToUser,
+        replyCount: 0,
+      }));
+      console.log('[fetchComments] processedReplies for', c.uuid, processedReplies);
 
-  return {
-    id: c.uuid,
-    authorUuid: c.author.uuid,
-    user: c.author.nickname,
-    avatar: c.author.profilePictureUrl
-      ? `${FULL_BASE_URL}${c.author.profilePictureUrl}`
-      : 'https://via.placeholder.com/100x100.png?text=No+Avatar',
-    content: c.content,
-    time: new Date(c.createdAt).toLocaleString(),
-    likes: c.likeCount ?? 0,
-    liked: !!c.likedByCurrentUser,
-    parentCommentUuid: c.parentCommentUuid,
-    replyToUser: c.replyToUser,
-    replyCount: c.replyCount || 0,
-    replies: processedReplies,
-  };
-});
-
+      // 5.2) 标准化主评论
+      return {
+        id: c.uuid,
+        authorUuid: c.author.uuid,
+        user: c.author.nickname,
+        avatar: c.author.profilePictureUrl
+          ? `${FULL_BASE_URL}${c.author.profilePictureUrl}`
+          : 'https://via.placeholder.com/100x100.png?text=No+Avatar',
+        content: c.content,
+        time: new Date(c.createdAt).toLocaleString(),
+        likes: c.likeCount ?? 0,
+        liked: !!c.likedByCurrentUser,
+        parentCommentUuid: c.parentCommentUuid,
+        replyToUser: c.replyToUser,
+        replyCount: c.replyCount || 0,
+        replies: processedReplies,
+      };
+    });
 
     console.log('[fetchComments] newComments:', newComments);
+
+    // 6) 更新 state：第一页覆盖，后续页追加
     setComments(prev =>
       pageNumber === 0 ? newComments : [...prev, ...newComments]
     );
@@ -569,23 +582,23 @@ const onRefresh = async () => {
               <View style={styles.commentTabs}>
                 {(['最新', '最热'] as SortType[]).map(t => (
                   <TouchableOpacity
-                    key={t}
-                    onPress={() => setActiveSort(t)}
-                    style={[
-                      styles.commentTab,
-                      activeSort === t && styles.activeCommentTab,
-                    ]}
-                  >
-                    <Text
-                      style={[
-                        styles.commentTabText,
-                        activeSort === t && styles.activeCommentTabText,
-                      ]}
-                    >
-                      {t}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
+                          key={t}
+                          onPress={() => setActiveSort(t)}
+                          style={[
+                            styles.commentTab,
+                            activeSort === t && styles.activeCommentTab,
+                          ]}
+                        >
+                          <Text
+                            style={[
+                              styles.commentTabText,
+                              activeSort === t && styles.activeCommentTabText,
+                            ]}
+                          >
+                            {t}
+                          </Text>
+                        </TouchableOpacity>
+                      ))}
               </View>
             </View>
           </>
