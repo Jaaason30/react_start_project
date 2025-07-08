@@ -127,6 +127,26 @@ export const styles = StyleSheet.create({
     fontSize: 30,
     color: '#666',
   },
+topBar: {
+  flexDirection: 'row',
+  alignItems: 'center',
+  justifyContent: 'space-between',
+  paddingHorizontal: 16,
+  paddingVertical: 12,
+  backgroundColor: '#fff',
+  borderBottomWidth: 1,
+  borderBottomColor: '#eee',
+},
+
+backButton: {
+  padding: 4,
+},
+
+topBarTitle: {
+  fontSize: 18,
+  fontWeight: '600',
+  color: '#222',
+},
 
 });
 
