@@ -12,6 +12,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -72,7 +73,6 @@ public class UserServiceImpl implements UserService {
         }
         return userMapper.toDto(u);
     }
-
     @Override
     @Transactional(readOnly = true)
     public UserDto getUserProfileByUuid(UUID uuid) {
@@ -227,5 +227,33 @@ public class UserServiceImpl implements UserService {
         }
 
         userRepo.save(user);
+    }
+
+    /**
+     * 通过邮箱获取用户信息
+     * @param email 用户邮箱
+     * @return 用户DTO
+     * @throws UsernameNotFoundException 用户不存在时抛出
+     */
+    @Override
+    @Transactional(readOnly = true)
+    public UserDto getUserByEmail(String email) {
+        User user = userRepo.findByEmail(email)
+                .orElseThrow(() -> new UsernameNotFoundException("用户不存在: " + email));
+        return userMapper.toDto(user);
+    }
+
+    /**
+     * 通过UUID获取用户信息
+     * @param uuid 用户UUID
+     * @return 用户DTO
+     * @throws UsernameNotFoundException 用户不存在时抛出
+     */
+    @Override
+    @Transactional(readOnly = true)
+    public UserDto getUserByUuid(UUID uuid) {
+        User user = userRepo.findByUuid(uuid)
+                .orElseThrow(() -> new UsernameNotFoundException("用户不存在: " + uuid));
+        return userMapper.toDto(user);
     }
 }

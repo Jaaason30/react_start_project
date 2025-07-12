@@ -28,3 +28,8 @@ app:
   post:
     official-emails: "admin@zusa.io,editor@zusa.io"
     max-images: 9
+jwt:
+  secret: mySecretKey_ThisShouldBeAtLeast256BitsLongForHS256Algorithm_ChangeInProduction
+  expiration: 3600000       # 1小时 (毫秒)
+  refresh:
+    expiration: 604800000   # 7天 (毫秒)

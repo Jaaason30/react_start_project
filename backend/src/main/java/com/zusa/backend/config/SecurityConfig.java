@@ -1,37 +1,90 @@
-// src/main/java/com/zusa/backend/config/SecurityConfig.java
 package com.zusa.backend.config;
 
+import com.zusa.backend.security.JwtAuthenticationEntryPoint;
+import com.zusa.backend.security.JwtAuthenticationFilter;
+import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.security.authentication.AuthenticationManager;
+import org.springframework.security.authentication.AuthenticationProvider;
+import org.springframework.security.authentication.dao.DaoAuthenticationProvider;
+import org.springframework.security.config.annotation.authentication.configuration.AuthenticationConfiguration;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
-import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
+import org.springframework.security.config.annotation.web.configuration.WebSecurityCustomizer;
+import org.springframework.security.config.http.SessionCreationPolicy;
+import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 
+/**
+ * SecurityConfig – 最终版
+ * 1. 放行所有静态资源 & 头像接口，无论 GET/HEAD。
+ * 2. 将 /api/media/profile/** 加入 permitAll 与 ignoring，解决头像 401。
+ * 3. 其余接口依旧走 JWT，保持无状态架构。
+ */
 @Configuration
 @EnableWebSecurity
+@RequiredArgsConstructor
 public class SecurityConfig {
 
+    private final JwtAuthenticationEntryPoint jwtAuthenticationEntryPoint;
+
     @Bean
-    public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
-        http
-                .csrf(csrf -> csrf.disable())
+    public JwtAuthenticationFilter jwtAuthenticationFilter() {
+        return new JwtAuthenticationFilter();
+    }
+
+    @Bean
+    public AuthenticationProvider authenticationProvider(UserDetailsService userDetailsService,
+                                                         PasswordEncoder passwordEncoder) {
+        DaoAuthenticationProvider authProvider = new DaoAuthenticationProvider();
+        authProvider.setUserDetailsService(userDetailsService);
+        authProvider.setPasswordEncoder(passwordEncoder);
+        return authProvider;
+    }
+
+    @Bean
+    public AuthenticationManager authenticationManager(AuthenticationConfiguration config) throws Exception {
+        return config.getAuthenticationManager();
+    }
+
+    @Bean
+    public SecurityFilterChain securityFilterChain(HttpSecurity http,
+                                                   JwtAuthenticationFilter jwtAuthFilter,
+                                                   AuthenticationProvider authProvider) throws Exception {
+
+        http.csrf(csrf -> csrf.disable())
+                .sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+                .exceptionHandling(ex -> ex.authenticationEntryPoint(jwtAuthenticationEntryPoint))
                 .authorizeHttpRequests(auth -> auth
-                        // 如果所有 /api/** 都不需要身份验证，则：
-                        .requestMatchers("/api/**").permitAll()
-                        .anyRequest().permitAll()
-                )
-                .httpBasic(customizer -> customizer.disable());   // 或者 .formLogin()，根据需要改
+                        // 登录 / 注册接口公开
+                        .requestMatchers("/api/auth/**").permitAll()
+                        // 静态资源 & 头像接口全部公开
+                        .requestMatchers(
+                                "/static/**",
+                                "/uploads/**",
+                                "/api/media/photo/**",
+                                "/api/media/profile/**"
+                        ).permitAll()
+                        // 其它请求需 JWT
+                        .anyRequest().authenticated())
+                .authenticationProvider(authProvider)
+                .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class);
 
         return http.build();
     }
 
-    /**
-     * 提供一个 PasswordEncoder，用在 UserService 中对密码进行加盐哈希
-     */
     @Bean
-    public PasswordEncoder passwordEncoder() {
-        return new BCryptPasswordEncoder();
+    public WebSecurityCustomizer webSecurityCustomizer() {
+        return web -> web.ignoring()
+                .requestMatchers(
+                        "/static/**",
+                        "/uploads/**",
+                        "/api/media/photo/**",
+                        "/api/media/profile/**",
+                        "/error"
+                );
     }
 }

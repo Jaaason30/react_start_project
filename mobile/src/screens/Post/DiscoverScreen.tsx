@@ -1,112 +1,125 @@
-// src/screens/DiscoverScreen.tsx
-
-import React, { useState, useEffect,useCallback} from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
   TouchableOpacity,
-  Platform,
-  ScrollView,
-  FlatList,
-  Image,
-  Dimensions,
   StatusBar,
+  FlatList,
   ActivityIndicator,
+  Platform,
 } from 'react-native';
 import Ionicons from 'react-native-vector-icons/Ionicons';
-import FastImage from 'react-native-fast-image';
+import FastImage, { OnLoadEvent } from 'react-native-fast-image';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { styles } from '../../theme/DiscoverScreen.styles';
 import LinearGradient from 'react-native-linear-gradient';
+import { styles } from '../../theme/DiscoverScreen.styles';
+import { apiClient } from '../../services/apiClient';
+import { API_ENDPOINTS } from '../../constants/api';
 
-// 🔗 BASE URL
-const FULL_BASE_URL = 'http://10.0.2.2:8080';
+// Platform-specific host
+const HOST = Platform.OS === 'android' ? '10.0.2.2' : 'localhost';
+const BASE_URL = `http://${HOST}:8080`;
+console.log('[DiscoverScreen] BASE_URL =', BASE_URL);
 
-type RootStackParamList = {
+export type RootStackParamList = {
   Login: undefined;
   Register: undefined;
   Dashboard: undefined;
   SeatOverview: undefined;
   SeatPage: { seatId: string };
   Discover: undefined;
-  Search: undefined;               // <-- make sure this is in your RootStackParamList
-  PlayerProfile: { userId?: string } | undefined;
+  Search: undefined;
+  PlayerProfile: { userId?: string };
   PostCreation: undefined;
   CertifiedPromotions: undefined;
   PostDetail: { post: any };
 };
 
 type DiscoverNav = NativeStackNavigationProp<RootStackParamList, 'Discover'>;
-
-const { width } = Dimensions.get('window');
-
-type Banner = { id: string; uri: string };
-const mockBanners: Banner[] = [
-  { id: 'b1', uri: 'https://picsum.photos/800/300' },
-  { id: 'b2', uri: 'https://picsum.photos/801/300' },
-  { id: 'b3', uri: 'https://picsum.photos/802/300' },
-];
-
 const TOP_TABS = ['关注', '推荐', '营销'] as const;
 const BOTTOM_TABS = [
-  { key: 'match',  label: '匹配', icon: 'heart-outline',       screen: 'Dashboard' },
-  { key: 'chat',   label: '聊天', icon: 'chatbubbles-outline', screen: 'SeatOverview' },
-  { key: 'square', label: '广场', icon: 'apps-outline',        screen: 'Discover' },
-  { key: 'me',     label: '我的', icon: 'person-outline',      screen: 'PlayerProfile' },
+  { key: 'match', label: '匹配', icon: 'heart-outline', screen: 'Dashboard' },
+  { key: 'chat', label: '聊天', icon: 'chatbubbles-outline', screen: 'SeatOverview' },
+  { key: 'square', label: '广场', icon: 'apps-outline', screen: 'Discover' },
+  { key: 'me', label: '我的', icon: 'person-outline', screen: 'PlayerProfile' },
 ] as const;
 
 export default function DiscoverScreen() {
   const navigation = useNavigation<DiscoverNav>();
   const [activeTopTab, setActiveTopTab] = useState<typeof TOP_TABS[number]>('推荐');
   const [activeBottom, setActiveBottom] = useState<typeof BOTTOM_TABS[number]['key']>('square');
-  const [bannerIndex, setBannerIndex] = useState(0);
   const [posts, setPosts] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-
-  // 新增下拉刷新状态
   const [refreshing, setRefreshing] = useState(false);
 
-  // 抽取为可重用的拉取函数
   const fetchPosts = useCallback(async () => {
+    setLoading(true);
+    const feedUrl = `${API_ENDPOINTS.POSTS_FEED}?page=0&size=20`;
+    console.log('[fetchPosts] GET', feedUrl);
     try {
-      const res = await fetch(`${FULL_BASE_URL}/api/posts/feed?page=0&size=20`);
-      const data = await res.json();
-      setPosts(data.content ?? []);
+      const { data, error } = await apiClient.get<{ content: any[] }>(feedUrl);
+      if (error) throw new Error(error);
+      setPosts(data?.content ?? []);
     } catch (err) {
-      console.error('❌ Fetch posts error:', err);
+      console.error('[fetchPosts] error:', err);
     } finally {
       setLoading(false);
     }
   }, []);
 
-  // 初次加载
   useEffect(() => {
     fetchPosts();
   }, [fetchPosts]);
 
-  // 下拉刷新处理
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
     await fetchPosts();
     setRefreshing(false);
   }, [fetchPosts]);
 
-  const renderPost = ({ item }: { item: any }) => {
-    const coverUrl = item.coverUrl
-      ? FULL_BASE_URL + item.coverUrl
-      : 'https://via.placeholder.com/400x600';
+  const getCoverUrl = (item: any): string => {
+    let url = '';
+    if (item.coverUrl) {
+      url = item.coverUrl.startsWith('http') ? item.coverUrl : `${BASE_URL}${item.coverUrl}`;
+    } else if (item.coverImageUrl) {
+      url = item.coverImageUrl.startsWith('http') ? item.coverImageUrl : `${BASE_URL}${item.coverImageUrl}`;
+    } else if (Array.isArray(item.images) && item.images.length > 0) {
+      const first = item.images[0];
+      if (first.url) url = first.url.startsWith('http') ? first.url : `${BASE_URL}${first.url}`;
+      else if (first.path) url = `${BASE_URL}${first.path}`;
+      else if (first.uuid) url = `${BASE_URL}/api/media/photo/${first.uuid}`;
+    }
+    return url || 'https://via.placeholder.com/400x600';
+  };
+
+  const PostCard: React.FC<{ item: any }> = ({ item }) => {
+    const [uri, setUri] = useState(getCoverUrl(item));
+    useEffect(() => {
+      setUri(getCoverUrl(item));
+    }, [item]);
+
+    const handleError = () => {
+      console.warn('[FastImage onError]', item.uuid);
+      setUri('https://via.placeholder.com/400x600');
+    };
+
+    const handleLoad = (e: OnLoadEvent) => {
+      console.log('[FastImage onLoad]', item.uuid, uri, e.nativeEvent);
+    };
 
     return (
       <TouchableOpacity
         style={styles.card}
-        onPress={() => navigation.navigate('PostDetail', { post: { ...item, coverUrl } })}
         activeOpacity={0.8}
+        onPress={() => navigation.navigate('PostDetail', { post: { ...item, coverUrl: uri } })}
       >
         <FastImage
-          source={{ uri: coverUrl }}
+          source={{ uri }}
           style={styles.cardImage}
           resizeMode={FastImage.resizeMode.cover}
+          onError={handleError}
+          onLoad={handleLoad}
         />
         <Text style={styles.cardTitle} numberOfLines={2}>
           {item.title ?? '（无标题）'}
@@ -118,8 +131,6 @@ export default function DiscoverScreen() {
             <Text style={styles.likesText}>{item.likeCount ?? 0}</Text>
           </View>
         </View>
-        {/* 可选：调试用 URL */}
-        {/* <Text style={styles.debugUrl} numberOfLines={1}>{coverUrl}</Text> */}
       </TouchableOpacity>
     );
   };
@@ -127,113 +138,44 @@ export default function DiscoverScreen() {
   return (
     <View style={styles.container}>
       <StatusBar barStyle="dark-content" />
-
-      {/* 顶部 Tab + 操作按钮 */}
       <View style={styles.topBar}>
         <View style={styles.topTabs}>
           {TOP_TABS.map(tab => (
-            <TouchableOpacity
-              key={tab}
-              onPress={() => setActiveTopTab(tab)}
-              style={styles.tabTouch}
-            >
-              <Text style={[styles.tabText, activeTopTab === tab && styles.tabActive]}>
-                {tab}
-              </Text>
+            <TouchableOpacity key={tab} onPress={() => setActiveTopTab(tab)} style={styles.tabTouch}>
+              <Text style={[styles.tabText, activeTopTab === tab && styles.tabActive]}>{tab}</Text>
             </TouchableOpacity>
           ))}
         </View>
         <View style={styles.topIcons}>
-          <TouchableOpacity
-            style={styles.verifyWrapper}
-            activeOpacity={0.8}
-            onPress={() => navigation.navigate('CertifiedPromotions')}
-          >
-            <LinearGradient
-              colors={['#FF2E92', '#AF54F5']}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 0 }}
-              style={styles.verifyTag}
-            >
+          <TouchableOpacity style={styles.verifyWrapper} activeOpacity={0.8} onPress={() => navigation.navigate('CertifiedPromotions')}>
+            <LinearGradient colors={['#FF2E92', '#AF54F5']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={styles.verifyTag}>
               <Text style={styles.verifyText}>认证营销 👑</Text>
             </LinearGradient>
           </TouchableOpacity>
-
-          <Ionicons
-            name="search-outline"
-            size={24}
-            style={styles.iconBtn}
-            onPress={() => navigation.navigate('Search')}
-          />
-          <Ionicons
-            name="add-outline"
-            size={28}
-            style={styles.iconBtn}
-            onPress={() => navigation.navigate('PostCreation')}
-          />
+          <Ionicons name="search-outline" size={24} style={styles.iconBtn} onPress={() => navigation.navigate('Search')} />
+          <Ionicons name="add-outline" size={28} style={styles.iconBtn} onPress={() => navigation.navigate('PostCreation')} />
         </View>
       </View>
 
-      {/* 帖子列表 with 下拉刷新 */}
       {loading && !refreshing ? (
         <ActivityIndicator size="large" color="#d81e06" style={{ marginTop: 50 }} />
       ) : (
         <FlatList
           data={posts}
           keyExtractor={item => item.uuid}
-          renderItem={renderPost}
+          renderItem={({ item }) => <PostCard item={item} />}
           numColumns={2}
           showsVerticalScrollIndicator={false}
-          removeClippedSubviews
           initialNumToRender={6}
           maxToRenderPerBatch={6}
           windowSize={9}
           contentContainerStyle={styles.listContent}
-          // 添加下拉刷新属性
           refreshing={refreshing}
           onRefresh={onRefresh}
-          // 如果你想用 RefreshControl 也可以这样写：
-          // refreshControl={
-          //   <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
-          // }
-          ListHeaderComponent={
-            <View style={styles.bannerBox}>
-              <ScrollView
-                horizontal
-                pagingEnabled
-                decelerationRate="fast"
-                showsHorizontalScrollIndicator={false}
-                snapToInterval={width}
-                snapToAlignment="center"
-                onScroll={({ nativeEvent }) => {
-                  const idx = Math.round(nativeEvent.contentOffset.x / width);
-                  setBannerIndex(idx);
-                }}
-                scrollEventThrottle={16}
-              >
-                {mockBanners.map(b => (
-                  <Image
-                    key={b.id}
-                    source={{ uri: b.uri }}
-                    style={styles.banner}
-                    resizeMode="cover"
-                  />
-                ))}
-              </ScrollView>
-              <View style={styles.dotsWrap}>
-                {mockBanners.map((_, i) => (
-                  <View
-                    key={i}
-                    style={[styles.dot, bannerIndex === i && styles.dotActive]}
-                  />
-                ))}
-              </View>
-            </View>
-          }
+          onEndReachedThreshold={0.5}
         />
       )}
 
-      {/* 底部导航 */}
       <View style={styles.bottomBar}>
         {BOTTOM_TABS.map(t => (
           <TouchableOpacity
@@ -244,14 +186,8 @@ export default function DiscoverScreen() {
             }}
             style={styles.bottomItem}
           >
-            <Ionicons
-              name={t.icon}
-              size={24}
-              color={activeBottom === t.key ? '#d81e06' : '#222'}
-            />
-            <Text style={[styles.bottomLabel, activeBottom === t.key && styles.bottomLabelActive]}>
-              {t.label}
-            </Text>
+            <Ionicons name={t.icon} size={24} color={activeBottom === t.key ? '#d81e06' : '#222'} />
+            <Text style={[styles.bottomLabel, activeBottom === t.key && styles.bottomLabelActive]}>{t.label}</Text>
           </TouchableOpacity>
         ))}
       </View>

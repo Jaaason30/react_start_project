@@ -1,5 +1,4 @@
-/* src/screens/LoginScreen.tsx
-   --------------------------------------------- */
+// src/screens/LoginScreen.tsx
 
 import React, { useState } from 'react';
 import {
@@ -9,16 +8,22 @@ import {
   TouchableOpacity,
   StyleSheet,
   Alert,
+  ActivityIndicator,
 } from 'react-native';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useNavigation } from '@react-navigation/native';
+
 import { Colors } from '../theme/colors';
 import { useUserProfile } from '../contexts/UserProfileContext';
-import { RootStackParamList } from '../App';          // ← 根据实际路径调整
+import { RootStackParamList } from '../App';
+import tokenManager from '../services/tokenManager';
+import { apiClient } from '../services/apiClient';
+import { API_ENDPOINTS } from '../constants/api';
 
-/* ----------- Props 类型：标准导航 + 自定义字段 ----------- */
+console.log('📡 API_ENDPOINTS is', API_ENDPOINTS);
+
 type Props = NativeStackScreenProps<RootStackParamList, 'Login'> & {
-  onLoginSuccess?: (username: string) => void;
+  onLoginSuccess?: () => void;
   error?: string;
 };
 
@@ -26,52 +31,64 @@ const LoginScreen: React.FC<Props> = ({ onLoginSuccess, error }) => {
   const navigation = useNavigation<any>();
   const { setProfileData } = useUserProfile();
 
+  // allow user to enter email or nickname here
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
 
-  /* -------------------- 登录处理 -------------------- */
   const handleLogin = async () => {
+    if (!username.trim() || !password.trim()) {
+      Alert.alert('错误', '请输入邮箱/昵称和密码');
+      return;
+    }
+
+    setIsLoading(true);
     try {
-      const response = await fetch('http://10.0.2.2:8080/api/auth/login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username, password }),
-      });
+      const { data, error: loginError } = await apiClient.post(
+        API_ENDPOINTS.LOGIN,
+        { username, password }
+      );
 
-      const result = await response.json();
+      if (data && !loginError) {
+        // save tokens
+        await tokenManager.saveTokens(data.accessToken, data.refreshToken);
 
-      if (response.ok) {
-        // 把 uuid / email 等写入全局上下文
+        // update user context
         setProfileData((prev) => ({
           ...prev,
-          uuid: result.uuid,
-          email: result.email,
+          uuid: data.userUuid,
+          email: data.email,
+          nickname: data.nickname,
         }));
 
-        onLoginSuccess?.(username);         // 通知 App 登录成功
-        navigation.replace('Step1Screen');  // 跳转注册流程首页
+        onLoginSuccess?.();
+        navigation.replace('Step1Screen');
       } else {
-        Alert.alert('登录失败', result.message || '用户名或密码错误');
+        Alert.alert('登录失败', loginError || '邮箱/昵称或密码错误');
       }
-    } catch {
+    } catch (err) {
+      console.error('Login error:', err);
       Alert.alert('网络错误', '无法连接到服务器');
+    } finally {
+      setIsLoading(false);
     }
   };
 
-  /* -------------------- UI -------------------- */
   return (
     <View style={styles.container}>
       <View style={styles.form}>
         <Text style={styles.title}>登录</Text>
 
-        {error ? <Text style={styles.error}>{error}</Text> : null}
+        {error && <Text style={styles.error}>{error}</Text>}
 
         <TextInput
-          placeholder="用户名"
+          placeholder="邮箱或昵称"
           placeholderTextColor={Colors.textSecondary}
           style={styles.input}
           value={username}
           onChangeText={setUsername}
+          autoCapitalize="none"
+          editable={!isLoading}
         />
         <TextInput
           placeholder="密码"
@@ -80,13 +97,25 @@ const LoginScreen: React.FC<Props> = ({ onLoginSuccess, error }) => {
           value={password}
           onChangeText={setPassword}
           secureTextEntry
+          editable={!isLoading}
         />
 
-        <TouchableOpacity style={styles.button} onPress={handleLogin}>
-          <Text style={styles.buttonText}>登录</Text>
+        <TouchableOpacity
+          style={[styles.button, isLoading && styles.buttonDisabled]}
+          onPress={handleLogin}
+          disabled={isLoading}
+        >
+          {isLoading ? (
+            <ActivityIndicator color={Colors.text} />
+          ) : (
+            <Text style={styles.buttonText}>登录</Text>
+          )}
         </TouchableOpacity>
 
-        <TouchableOpacity onPress={() => navigation.navigate('Register')}>
+        <TouchableOpacity
+          onPress={() => navigation.navigate('Register')}
+          disabled={isLoading}
+        >
           <Text style={styles.link}>没有账号？去注册</Text>
         </TouchableOpacity>
       </View>
@@ -96,9 +125,6 @@ const LoginScreen: React.FC<Props> = ({ onLoginSuccess, error }) => {
 
 export default LoginScreen;
 
-/* ---------------------------------------------
-   样式定义
-   --------------------------------------------- */
 const styles = StyleSheet.create({
   container: {
     flex: 1,
@@ -137,9 +163,14 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.primary,
     paddingVertical: 10,
     borderRadius: 5,
+    minHeight: 44,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  buttonDisabled: {
+    opacity: 0.6,
   },
   buttonText: {
-    textAlign: 'center',
     color: Colors.text,
     fontWeight: 'bold',
     fontSize: 16,

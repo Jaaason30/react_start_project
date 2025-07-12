@@ -1,113 +1,74 @@
 // src/contexts/UserProfileContext.tsx
-
-import React, { createContext, useContext, useState, useCallback } from 'react';
-
-export type PartialUserDto = {
-  // Identifiers
-  shortId?: number;
-  uuid?: string;
-
-  // Basic info
-  email?: string;
-  nickname?: string;
-  bio?: string;
-  dateOfBirth?: string;
-  age?: number;
-
-  // Location
-  city?: { name: string };
-
-  // Gender
-  gender?: { text: string };
-  genderPreferences?: Array<{ text: string }>;
-
-  // Media
-  profileBase64?: string;
-  profileMime?: string;
-  profilePictureUrl?: string;
-
-  albumBase64List?: (string | undefined)[];
-  albumMimeList?: (string | undefined)[];
-  albumUrls?: string[];
-
-  // Interests and Venues
-  interests?: string[];
-  preferredVenues?: string[];
-
-  // Statistics & Relationships
-  totalLikesReceived?: number;
-  followerCount?: number;
-  followingCount?: number;
-  followers?: Array<{ uuid: string; nickname: string; profilePictureUrl: string }>;
-  following?: Array<{ uuid: string; nickname: string; profilePictureUrl: string }>;
-};
+import React, {
+  createContext,
+  useContext,
+  useState,
+  useCallback,
+} from 'react';
+import { apiClient } from '../services/apiClient';
+import { API_ENDPOINTS } from '../constants/api';
+import type { PartialUserDto } from '../types/User.types.ts';
 
 type ContextType = {
   profileData: PartialUserDto;
   setProfileData: React.Dispatch<React.SetStateAction<PartialUserDto>>;
   refreshProfile: () => Promise<void>;
-  // 新增：avatarVersion 和 控制版本号的函数
+  clearProfileData: () => void;
   avatarVersion: number;
   bumpAvatarVersion: () => void;
 };
 
-const defaultContextValue: ContextType = {
+const defaultValue: ContextType = {
   profileData: {} as PartialUserDto,
   setProfileData: () => {},
   refreshProfile: async () => {},
+  clearProfileData: () => {},
   avatarVersion: 0,
   bumpAvatarVersion: () => {},
 };
 
-export const UserProfileContext = createContext<ContextType>(defaultContextValue);
+export const UserProfileContext = createContext<ContextType>(defaultValue);
 
-export const UserProfileProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [profileData, setProfileData] = useState<PartialUserDto>({
-    genderPreferences: [],
-    albumBase64List: [],
-    albumMimeList: [],
-    albumUrls: [],
-    interests: [],
-    preferredVenues: [],
-    followers: [],
-    following: [],
-  });
+export const UserProfileProvider: React.FC<{ children: React.ReactNode }> = ({
+  children,
+}) => {
+  const [profileData, setProfileData] = useState<PartialUserDto>({});
+  const [avatarVersion, setAvatarVersion] = useState(0);
 
-  // avatarVersion 用于给头像 URL 打版本号，只有在真正更新后才变更
-  const [avatarVersion, setAvatarVersion] = useState<number>(0);
-
-  // 手动触发版本号更新
+  // Only bump when URL actually changes
   const bumpAvatarVersion = useCallback(() => {
-    setAvatarVersion(Date.now());
+    setAvatarVersion((v) => v + 1);
   }, []);
 
+  const clearProfileData = useCallback(() => {
+    setProfileData({});
+    setAvatarVersion(0);
+  }, []);
+
+  // Fetch latest profile from backend
   const refreshProfile = useCallback(async () => {
-    if (!profileData?.uuid) return;
-
+    if (!profileData.uuid) return;
     try {
-      const response = await fetch(
-        `http://10.0.2.2:8080/api/user/profile?userUuid=${profileData.uuid}`
+      const { data } = await apiClient.get<PartialUserDto>(
+        `${API_ENDPOINTS.USER_PROFILE}?userUuid=${profileData.uuid}`
       );
-      
-      if (!response.ok) {
-        throw new Error('Failed to refresh profile');
+      if (data) {
+        if (
+          data.profilePictureUrl &&
+          data.profilePictureUrl !== profileData.profilePictureUrl
+        ) {
+          bumpAvatarVersion();
+        }
+        setProfileData((prev) => ({ ...prev, ...data }));
       }
-
-      const data: PartialUserDto = await response.json();
-
-      // 只有在后端返回的头像 URL 与当前不同，才 bump 版本号
-      if (data.profilePictureUrl && data.profilePictureUrl !== profileData.profilePictureUrl) {
-        bumpAvatarVersion();
-      }
-
-      setProfileData(prev => ({
-        ...prev,
-        ...data
-      }));
     } catch (err) {
       console.error('Failed to refresh profile:', err);
     }
-  }, [profileData.profilePictureUrl, profileData.uuid, bumpAvatarVersion]);
+  }, [
+    profileData.uuid,
+    profileData.profilePictureUrl,
+    bumpAvatarVersion,
+  ]);
 
   return (
     <UserProfileContext.Provider
@@ -115,8 +76,9 @@ export const UserProfileProvider: React.FC<{ children: React.ReactNode }> = ({ c
         profileData,
         setProfileData,
         refreshProfile,
+        clearProfileData,
         avatarVersion,
-        bumpAvatarVersion
+        bumpAvatarVersion,
       }}
     >
       {children}
@@ -124,4 +86,4 @@ export const UserProfileProvider: React.FC<{ children: React.ReactNode }> = ({ c
   );
 };
 
-export const useUserProfile = (): ContextType => useContext(UserProfileContext);
+export const useUserProfile = () => useContext(UserProfileContext);
