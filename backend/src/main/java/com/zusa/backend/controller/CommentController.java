@@ -1,4 +1,3 @@
-// src/main/java/com/zusa/backend/controller/CommentController.java
 package com.zusa.backend.controller;
 
 import com.zusa.backend.dto.post.AddCommentReq;
@@ -21,30 +20,53 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class CommentController {
 
+
     private final CommentService commentService;
 
-    /** 获取帖子的一级评论列表 */
+    /* ① 帖子一级评论列表  --------------------------------------------- */
     @GetMapping("/posts/{postUuid}/comments")
     public Page<CommentDto> listTopLevel(
             @PathVariable UUID postUuid,
             @RequestParam(name = "sortType", defaultValue = "LATEST") CommentService.SortType sortType,
+            @AuthenticationPrincipal UserDetails principal,                 // ← 加上
             @RequestParam(name = "userUuid", required = false) UUID userUuid,
             @RequestParam(name = "loadReplies", defaultValue = "false") boolean loadReplies,
-            Pageable pageable
-    ) {
-        return commentService.listTopLevel(postUuid, sortType, pageable, userUuid, loadReplies);
+            Pageable pageable) {
+
+        /* 统一求出 “有效用户 UUID” —— 登录优先，参数兜底 */
+        UUID effectiveUserUuid = principal != null
+                ? UUID.fromString(principal.getUsername())
+                : userUuid;
+
+        Page<CommentDto> result = commentService.listTopLevel(
+                postUuid, sortType, pageable,
+                effectiveUserUuid,
+                loadReplies);
+
+        System.out.println("[🧩 listTopLevel] 登录用户 = " + effectiveUserUuid +
+                " | 返回 " + result.getTotalElements() + " 条");
+        return result;
     }
 
-    /** 获取某评论的回复列表 */
+    /* ② 某条评论的回复列表  ------------------------------------------- */
     @GetMapping("/comments/{commentUuid}/replies")
     public Page<CommentDto> listReplies(
             @PathVariable UUID commentUuid,
+            @AuthenticationPrincipal UserDetails principal,                 // ← 同理
             @RequestParam(name = "userUuid", required = false) UUID userUuid,
-            Pageable pageable
-    ) {
-        return commentService.listReplies(commentUuid, pageable, userUuid);
-    }
+            Pageable pageable) {
 
+        UUID effectiveUserUuid = principal != null
+                ? UUID.fromString(principal.getUsername())
+                : userUuid;
+
+        Page<CommentDto> result = commentService.listReplies(
+                commentUuid, pageable, effectiveUserUuid);
+
+        System.out.println("[🧩 listReplies] 登录用户 = " + effectiveUserUuid +
+                " | 返回 " + result.getTotalElements() + " 条");
+        return result;
+    }
     /** 新增评论或回复 */
     @PostMapping("/posts/{postUuid}/comments")
     public ResponseEntity<CommentDto> add(
@@ -56,13 +78,15 @@ public class CommentController {
                 ? UUID.fromString(principal.getUsername())
                 : req.getAuthorUuid();
 
-        return ResponseEntity.ok(commentService.add(
+        CommentDto dto = commentService.add(
                 postUuid,
                 author,
                 req.getContent(),
                 req.getParentCommentUuid(),
                 req.getReplyToUserUuid()
-        ));
+        );
+        System.out.println("[🧩 Controller.add] 新增评论: " + dto);
+        return ResponseEntity.ok(dto);
     }
 
     /** 点赞 / 取消点赞 */
@@ -78,7 +102,9 @@ public class CommentController {
         if (me == null) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
         }
-        return ResponseEntity.ok(commentService.toggleLike(commentUuid, me));
+        CommentDto dto = commentService.toggleLike(commentUuid, me);
+        System.out.println("[🧩 Controller.toggleLike] 点赞/取消: " + dto);
+        return ResponseEntity.ok(dto);
     }
 
     /** 单条评论详情（包含回复） */
@@ -87,7 +113,9 @@ public class CommentController {
             @PathVariable UUID commentUuid,
             @RequestParam(name="userUuid", required=false) UUID userUuid
     ) {
-        return ResponseEntity.ok(commentService.get(commentUuid, userUuid));
+        CommentDto dto = commentService.get(commentUuid, userUuid);
+        System.out.println("[🧩 Controller.get] 单条评论详情: " + dto);
+        return ResponseEntity.ok(dto);
     }
 
     /** 删除评论（仅作者） */
@@ -104,6 +132,7 @@ public class CommentController {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
         }
         commentService.delete(commentUuid, me);
+        System.out.println("[🧩 Controller.delete] 删除成功: commentUuid=" + commentUuid + ", by=" + me);
         return ResponseEntity.noContent().build();
     }
 }

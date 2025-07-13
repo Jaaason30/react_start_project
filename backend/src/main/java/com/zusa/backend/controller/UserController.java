@@ -1,6 +1,7 @@
 // src/main/java/com/zusa/backend/controller/UserController.java
 package com.zusa.backend.controller;
 
+//import ch.qos.logback.classic.Logger;
 import com.zusa.backend.dto.user.UserDto;
 import com.zusa.backend.dto.user.UserSummaryDto;
 import com.zusa.backend.service.UserService;
@@ -11,6 +12,8 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.UUID;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 @RestController
 @RequestMapping("/api/user")
@@ -18,9 +21,11 @@ import java.util.UUID;
 public class UserController {
 
     private final UserService userService;
+    private static final Logger log = LoggerFactory.getLogger(UserController.class);
 
     @GetMapping("/profile")
     public ResponseEntity<UserDto> getProfileByUuid(@RequestParam UUID userUuid) {
+        log.info("[Controller] /profile 参数 userUuid = {}", userUuid);
         return ResponseEntity.ok(userService.getUserProfileByUuid(userUuid));
     }
 
@@ -33,6 +38,7 @@ public class UserController {
     @PatchMapping("/profile")
     public ResponseEntity<Void> updateProfilePartially(@RequestBody UserDto req,
                                                        @RequestParam UUID userUuid) {
+        
         userService.updateProfilePartially(req, userUuid);
         return ResponseEntity.ok().build();
     }

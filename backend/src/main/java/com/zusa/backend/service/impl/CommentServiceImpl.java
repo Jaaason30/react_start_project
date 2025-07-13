@@ -55,8 +55,10 @@ public class CommentServiceImpl implements CommentService {
         Page<CommentDto> dtoPage = commentPage.map(mapper::toDto);
 
         if (!dtoPage.isEmpty()) {
+            System.out.println("hahaaaa");
             // 4) 设置当前用户的点赞状态
             if (userUuid != null) {
+                System.out.println("haha");
                 setLikedStatus(dtoPage.getContent(), userUuid);
             }
 
@@ -231,12 +233,28 @@ public class CommentServiceImpl implements CommentService {
                 .map(CommentDto::getUuid)
                 .collect(Collectors.toList());
 
-        Set<UUID> likedSet = likeRepo
-                .findAllByUser_UuidAndComment_UuidIn(userUuid, ids)
-                .stream()
-                .map(cl -> cl.getComment().getUuid())
+        System.out.println("[🌟 调试] 开始设置 likedByCurrentUser 状态");
+        System.out.println(" - 传入用户 UUID: " + userUuid);
+        System.out.println(" - 评论 UUID 列表: " + ids);
+
+        List<CommentLike> likes = likeRepo.findAllByUser_UuidAndComment_UuidIn(userUuid, ids);
+
+        Set<UUID> likedSet = likes.stream()
+                .map(cl -> {
+                    UUID commentUuid = cl.getComment().getUuid();
+                    System.out.println(" - ✅ 查询到点赞记录: comment.id=" + cl.getComment().getId() + ", uuid=" + commentUuid);
+                    return commentUuid;
+                })
                 .collect(Collectors.toSet());
 
-        comments.forEach(dto -> dto.setLikedByCurrentUser(likedSet.contains(dto.getUuid())));
+        for (CommentDto dto : comments) {
+            boolean liked = likedSet.contains(dto.getUuid());
+            dto.setLikedByCurrentUser(liked);
+            System.out.println("[🧩 DTO liked状态设置] 评论ID: " + dto.getUuid() + " -> likedByCurrentUser=" + liked);
+        }
+
+        System.out.println("[🌟 调试] likedByCurrentUser 状态设置完成，共处理: " + comments.size() + " 条评论");
     }
+
+
 }

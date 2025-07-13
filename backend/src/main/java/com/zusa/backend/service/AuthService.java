@@ -22,14 +22,15 @@ public class AuthService implements UserDetailsService {
     private static final Logger logger = LoggerFactory.getLogger(AuthService.class);
 
     private final UserRepository userRepo;
-    private final PasswordEncoder encoder;  // 由 SecurityConfig 注入
+    private final PasswordEncoder encoder;
 
     /* -------- 注册 -------- */
     @Transactional
     public UUID register(String email, String rawPwd, String nickname) {
-        logger.info("Registering new user with email: {} and nickname: {}", email, nickname);
+        logger.info("[注册] 请求注册新用户 email: {}, nickname: {}", email, nickname);
+
         userRepo.findByEmail(email).ifPresent(u -> {
-            logger.warn("Attempt to register with existing email: {}", email);
+            logger.warn("[注册失败] 邮箱已存在: {}", email);
             throw new IllegalStateException("邮箱已被注册");
         });
 
@@ -38,51 +39,65 @@ public class AuthService implements UserDetailsService {
                 .password(encoder.encode(rawPwd))
                 .nickname(nickname)
                 .build();
+
         userRepo.save(u);
-        logger.info("User registered successfully: {}", u.getUuid());
-        return u.getUuid();  // 返回安全 UUID
+        logger.info("[注册成功] UUID: {}, email: {}, nickname: {}", u.getUuid(), u.getEmail(), u.getNickname());
+        return u.getUuid();
     }
 
     /* -------- 手动登录验证 -------- */
     @Transactional(readOnly = true)
     public boolean verify(String username, String rawPwd) {
-        logger.debug("Verifying credentials for: {}", username);
+        logger.debug("[登录验证] 验证用户名: {}", username);
+
         Optional<User> opt = userRepo.findByEmail(username)
                 .or(() -> userRepo.findByNickname(username));
+
         if (opt.isEmpty()) {
-            logger.warn("No user found with email or nickname: {}", username);
+            logger.warn("[登录失败] 用户不存在: {}", username);
             return false;
         }
+
         User u = opt.get();
         boolean matches = encoder.matches(rawPwd, u.getPassword());
+
         if (!matches) {
-            logger.warn("Invalid password attempt for user: {}", username);
+            logger.warn("[登录失败] 密码错误 - 用户: {}", username);
+        } else {
+            logger.info("[登录成功] 用户: {}, UUID: {}", username, u.getUuid());
         }
+
         return matches;
     }
 
     /* -------- Spring Security 必需 -------- */
     @Override
     @Transactional(readOnly = true)
-    public UserDetails loadUserByUsername(String username)
-            throws UsernameNotFoundException {
-        logger.debug("Loading user by username for authentication: {}", username);
+    public UserDetails loadUserByUsername(String username) throws UsernameNotFoundException {
+        logger.debug("[SpringSecurity] 加载用户: {}", username);
+        Optional<User> opt;
 
-        // 先按 email 查，查不到再按 nickname
-        User u = userRepo.findByEmail(username)
-                .or(() -> userRepo.findByNickname(username))
-                .orElseThrow(() -> {
-                    logger.error("User not found with email or nickname: {}", username);
-                    return new UsernameNotFoundException("没有找到用户: " + username);
-                });
+        try {
+            // 尝试作为 UUID 查找
+            UUID uuid = UUID.fromString(username);
+            opt = userRepo.findByUuid(uuid);
+        } catch (IllegalArgumentException e) {
+            // 不是 UUID 再按 email 或 nickname
+            opt = userRepo.findByEmail(username).or(() -> userRepo.findByNickname(username));
+        }
 
-        logger.info("User found: {} (email: {})", u.getUuid(), u.getEmail());
+        User u = opt.orElseThrow(() -> {
+            logger.error("[认证失败] 用户不存在: {}", username);
+            return new UsernameNotFoundException("没有找到用户: " + username);
+        });
 
-        // **关键：将 Spring Security 的 username 设置为用户 UUID**
+        logger.info("[认证成功] UUID: {}, email: {}", u.getUuid(), u.getEmail());
+
         return org.springframework.security.core.userdetails.User
-                .withUsername(u.getUuid().toString())
+                .withUsername(u.getUuid().toString()) // username 设置为 UUID
                 .password(u.getPassword())
-                .roles("USER")           // 如有角色表，可改成动态
+                .roles("USER")
                 .build();
     }
+
 }

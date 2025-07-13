@@ -22,16 +22,6 @@ import java.util.UUID;
 import java.util.List;
 import java.util.stream.IntStream;
 
-/**
- * UserServiceImpl
- * 用户相关业务实现：
- * - 注册
- * - 登录
- * - 查询用户资料
- * - 修改用户资料（含头像、相册上传）
- * - 关注/取消关注
- * - 获取粉丝与关注列表
- */
 @Service
 @RequiredArgsConstructor
 @Slf4j
@@ -66,18 +56,31 @@ public class UserServiceImpl implements UserService {
     @Override
     @Transactional
     public UserDto login(String username, String rawPassword) {
-        User u = userRepo.findByNickname(username)
-                .orElseThrow(() -> new RuntimeException("用户名或密码错误"));
+        Optional<User> opt = username.contains("@")
+                ? userRepo.findByEmail(username)
+                : userRepo.findByNickname(username);
+
+        User u = opt.orElseThrow(() -> new RuntimeException("用户名或密码错误"));
+
         if (!passwordEncoder.matches(rawPassword, u.getPassword())) {
             throw new RuntimeException("用户名或密码错误");
         }
+
         return userMapper.toDto(u);
     }
+
     @Override
     @Transactional(readOnly = true)
     public UserDto getUserProfileByUuid(UUID uuid) {
+        log.info("[🔍 getUserProfileByUuid] 查询 UUID: {}", uuid);
+
         User user = userRepo.findByUuid(uuid)
-                .orElseThrow(() -> new RuntimeException("找不到用户"));
+                .orElseThrow(() -> {
+                    log.warn("[❌ getUserProfileByUuid] 用户不存在，UUID: {}", uuid);
+                    return new UsernameNotFoundException("用户不存在222: " + uuid);
+                });
+
+        log.info("[✅ getUserProfileByUuid] 查询成功，昵称: {}, 邮箱: {}", user.getNickname(), user.getEmail());
         return userMapper.toDto(user);
     }
 
@@ -201,7 +204,7 @@ public class UserServiceImpl implements UserService {
             );
         }
 
-        // ========== 其余字段更新（不打印 info） ==========
+        // ========== 其余字段更新 ==========
         Optional.ofNullable(req.getNickname()).ifPresent(user::setNickname);
         Optional.ofNullable(req.getBio()).ifPresent(user::setBio);
         Optional.ofNullable(req.getDateOfBirth()).ifPresent(user::setDateOfBirth);
@@ -229,31 +232,26 @@ public class UserServiceImpl implements UserService {
         userRepo.save(user);
     }
 
-    /**
-     * 通过邮箱获取用户信息
-     * @param email 用户邮箱
-     * @return 用户DTO
-     * @throws UsernameNotFoundException 用户不存在时抛出
-     */
     @Override
     @Transactional(readOnly = true)
     public UserDto getUserByEmail(String email) {
         User user = userRepo.findByEmail(email)
-                .orElseThrow(() -> new UsernameNotFoundException("用户不存在: " + email));
+                .orElseThrow(() -> new UsernameNotFoundException("用户不存在222: " + email));
         return userMapper.toDto(user);
     }
 
-    /**
-     * 通过UUID获取用户信息
-     * @param uuid 用户UUID
-     * @return 用户DTO
-     * @throws UsernameNotFoundException 用户不存在时抛出
-     */
     @Override
     @Transactional(readOnly = true)
     public UserDto getUserByUuid(UUID uuid) {
+        log.info("[🔍 getUserByUuid] 接收到查询请求，UUID: {}", uuid);
+
         User user = userRepo.findByUuid(uuid)
-                .orElseThrow(() -> new UsernameNotFoundException("用户不存在: " + uuid));
+                .orElseThrow(() -> {
+                    log.warn("[❌ getUserByUuid] 用户不存在，UUID: {}", uuid);
+                    return new UsernameNotFoundException("用户不存在111: " + uuid);
+                });
+
+        log.info("[✅ getUserByUuid] 查询成功，昵称: {}, 邮箱: {}", user.getNickname(), user.getEmail());
         return userMapper.toDto(user);
     }
 }

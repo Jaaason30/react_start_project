@@ -1,5 +1,5 @@
-/* src/screens/SearchScreen.tsx
-   ------------------------------------------------- */
+// src/screens/SearchScreen.tsx
+
 import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
@@ -17,6 +17,10 @@ import FastImage from 'react-native-fast-image';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../../App';
+import { apiClient } from '../../services/apiClient';
+import { API_ENDPOINTS } from '../../constants/api';
+import { patchUrl } from './utils/urlHelpers';
+
 
 type SearchNav = NativeStackNavigationProp<RootStackParamList, 'Search'>;
 
@@ -35,7 +39,6 @@ interface TagItem {
 const { width } = Dimensions.get('window');
 const CARD_MARGIN = 8;
 const CARD_WIDTH = (width - CARD_MARGIN * 3) / 2;
-const FULL_BASE_URL = 'http://10.0.2.2:8080';
 const HOT_TAG_LIMIT = 12;
 
 export default function SearchScreen() {
@@ -45,67 +48,89 @@ export default function SearchScreen() {
   const [results, setResults] = useState<SearchResult[]>([]);
   const [loading, setLoading] = useState(false);
   const [hotTags, setHotTags] = useState<TagItem[]>([]);
-  const [showTags, setShowTags] = useState(true);        // ✅ 新增：是否显示标签栏
+  const [showTags, setShowTags] = useState(true);
 
-  /* ---------------- 拉热门标签 ---------------- */
+  /* ------------- 拉取热门标签 ------------- */
   useEffect(() => {
     (async () => {
+      console.log('[SearchScreen] fetching hot tags…');
       try {
-        const res = await fetch(`${FULL_BASE_URL}/api/tags/hot?limit=${HOT_TAG_LIMIT}`);
-        const tags: TagItem[] = await res.json();
-        setHotTags(tags);
+        const { data: tags, status, error } = await apiClient.get<TagItem[]>(
+          `${API_ENDPOINTS.TAGS_HOT}?limit=${HOT_TAG_LIMIT}`
+        );
+        console.log('[SearchScreen] hot tags status:', status, 'error:', error, 'payload:', tags);
+        if (status === 200 && Array.isArray(tags)) {
+          setHotTags(tags);
+        } else {
+          console.warn('[SearchScreen] unable to fetch hot tags:', error);
+        }
       } catch (err) {
-        console.error(err);
+        console.error('[SearchScreen] fetch hot tags error:', err);
       }
     })();
   }, []);
 
-  /* ---------------- 搜索函数 ---------------- */
-const handleSearch = useCallback(
-  async (kw?: string, hideTags = false) => {
-    const keyword = (kw ?? query).trim();
-    if (!keyword) return;
+  /* ------------- 搜索函数 ------------- */
+  const handleSearch = useCallback(
+    async (kw?: string, hideTags = false) => {
+      const keyword = (kw ?? query).trim();
+      if (!keyword) {
+        console.warn('[SearchScreen] empty keyword, aborting search');
+        return;
+      }
 
-    if (hideTags) setShowTags(false);
-    setLoading(true);
-    setResults([]);
+      if (hideTags) setShowTags(false);
+      setLoading(true);
+      setResults([]);
 
-    // ① 这里多加了 shortId 参数
-    const res = await fetch(
-      `${FULL_BASE_URL}/api/posts/search?kw=${encodeURIComponent(keyword)}&shortId=${encodeURIComponent(keyword)}`
-    );
-    const page = await res.json();
-    setResults(page.content ?? []);
-    setLoading(false);
-  },
-  [query]
-);
+      const endpoint =
+        `${API_ENDPOINTS.POSTS_SEARCH}` +
+        `?kw=${encodeURIComponent(keyword)}` +
+        `&shortId=${encodeURIComponent(keyword)}`;
+      console.log('[SearchScreen] calling search endpoint →', endpoint);
 
+      try {
+        const { data: page, status, error } = await apiClient.get<{
+          content: SearchResult[];
+        }>(endpoint);
+        console.log('[SearchScreen] search status:', status, 'error:', error, 'payload:', page);
+        if (status === 200 && page && Array.isArray(page.content)) {
+          setResults(page.content);
+        } else {
+          console.warn('[SearchScreen] search failed:', error);
+        }
+      } catch (err) {
+        console.error('[SearchScreen] handleSearch error:', err);
+      } finally {
+        setLoading(false);
+      }
+    },
+    [query]
+  );
 
   const onTagPress = (tag: TagItem) => {
     setQuery(tag.name);
-    handleSearch(tag.name, true);                        // ✅ 点击标签 ⇒ 隐藏标签栏
+    handleSearch(tag.name, true);
   };
 
   const renderPost = ({ item }: { item: SearchResult }) => {
-    const cover = item.coverUrl.startsWith('http')
-      ? item.coverUrl
-      : `${FULL_BASE_URL}${item.coverUrl}`;
-
+    const coverUri = patchUrl(item.coverUrl) ?? '';
     return (
       <TouchableOpacity
         style={styles.card}
         activeOpacity={0.8}
-        onPress={() => navigation.navigate('PostDetail', { post: { uuid: item.uuid } })}
+        onPress={() =>
+          navigation.navigate('PostDetail', { post: { uuid: item.uuid } })
+        }
       >
-        <FastImage source={{ uri: cover }} style={styles.cardImage} resizeMode="cover" />
+        <FastImage source={{ uri: coverUri }} style={styles.cardImage} resizeMode="cover" />
         <Text style={styles.cardTitle} numberOfLines={2}>
           {item.title || '（无标题）'}
         </Text>
         <View style={styles.cardFooter}>
           <Text style={styles.author}>{item.author.nickname}</Text>
           <View style={styles.likesRow}>
-            <Ionicons name="heart-outline" size={14} color="#888" />
+            <Ionicons name="heart-outline" size={14} />
             <Text style={styles.likesText}>{item.likeCount}</Text>
           </View>
         </View>
@@ -113,7 +138,6 @@ const handleSearch = useCallback(
     );
   };
 
-  /* ---------------- 组件渲染 ---------------- */
   return (
     <View style={styles.container}>
       {/* Header */}
@@ -129,7 +153,7 @@ const handleSearch = useCallback(
             placeholder="搜索帖子"
             value={query}
             onChangeText={setQuery}
-            onSubmitEditing={() => handleSearch(undefined, true)}  // ← 输入搜索也可隐藏
+            onSubmitEditing={() => handleSearch(undefined, true)}
             returnKeyType="search"
           />
         </View>
@@ -140,14 +164,18 @@ const handleSearch = useCallback(
       </View>
 
       {/* Hot Tags */}
-      {showTags && (
+      {showTags && hotTags.length > 0 && (
         <ScrollView
           horizontal
           showsHorizontalScrollIndicator={false}
           contentContainerStyle={styles.tagContainer}
         >
           {hotTags.map((tag) => (
-            <TouchableOpacity key={tag.name} style={styles.tag} onPress={() => onTagPress(tag)}>
+            <TouchableOpacity
+              key={tag.name}
+              style={styles.tag}
+              onPress={() => onTagPress(tag)}
+            >
               <Text style={styles.tagText}>#{tag.name}</Text>
             </TouchableOpacity>
           ))}
@@ -197,18 +225,18 @@ const styles = StyleSheet.create({
 
   /* Hot Tags —— 尺寸缩小 */
   tagContainer: {
-    height: 40,                          // ✅ 固定高度，避免占满屏
+    height: 40,
     paddingHorizontal: 4,
     backgroundColor: '#fff',
     borderBottomWidth: 1,
     borderBottomColor: '#ddd',
     flexDirection: 'row',
-    alignItems: 'center',                // ✅ 垂直居中
+    alignItems: 'center',
   },
   tag: {
     backgroundColor: '#eee',
     borderRadius: 12,
-    paddingHorizontal: 6,                // 更紧凑
+    paddingHorizontal: 6,
     paddingVertical: 2,
     marginRight: 6,
   },

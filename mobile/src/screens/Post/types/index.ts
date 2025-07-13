@@ -1,10 +1,4 @@
-// src/screens/Post/types.ts
-
-/** 评论排序方式 */
-export type SortType = '最新' | '最热';
-
-/** 评论类型 */
-export interface CommentType {
+export type CommentType = {
   id: string;
   authorUuid: string;
   user: string;
@@ -12,15 +6,16 @@ export interface CommentType {
   content: string;
   time: string;
   likes: number;
-  liked: boolean;
+  likedByCurrentUser: boolean;
   parentCommentUuid?: string;
   replyToUser?: { uuid: string; nickname: string };
   replyCount: number;
   replies?: CommentType[];
-}
+};
 
-/** 帖子类型 */
-export interface PostType {
+export type SortType = '最新' | '最热';
+
+export type PostType = {
   uuid: string;
   title: string;
   content: string;
@@ -34,10 +29,11 @@ export interface PostType {
   likedByCurrentUser: boolean;
   collectedByCurrentUser: boolean;
   followedByCurrentUser: boolean;
-}
+};
+
 export type ReplyingToType = {
   commentId: string;
   userName: string;
   parentCommentUuid?: string;
   replyToUserUuid?: string;
-} | null;
+};

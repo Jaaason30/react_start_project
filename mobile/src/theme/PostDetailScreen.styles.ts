@@ -169,15 +169,15 @@ export const styles = StyleSheet.create({
   submitButtonText: { color: '#fff', fontWeight: 'bold', fontSize: 16 },
 
   /* ---------- 回复相关 ---------- */
-  replyItem: {
-    marginLeft: 48,
-    width: '100%',
-    flexDirection: 'row',
-    backgroundColor: '#f8f8f8',
-    borderLeftWidth: 2,
-    borderLeftColor: '#e0e0e0',
-    paddingLeft: 8,
-  },
+replyItem: {
+  backgroundColor: '#f7f7f7',
+  borderLeftWidth: 2,
+  borderLeftColor: '#ddd',
+  padding: 8,
+  marginTop: 8,
+  marginLeft: 1, // 👈 让整个回复框向右
+  borderRadius: 8,
+},
   viewRepliesButton: { marginTop: 8, paddingVertical: 4 },
   viewRepliesText: { color: '#007AFF', fontSize: 13, fontWeight: '500' },
   replyToText: {

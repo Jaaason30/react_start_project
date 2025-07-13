@@ -20,8 +20,6 @@ import tokenManager from '../services/tokenManager';
 import { apiClient } from '../services/apiClient';
 import { API_ENDPOINTS } from '../constants/api';
 
-console.log('📡 API_ENDPOINTS is', API_ENDPOINTS);
-
 type Props = NativeStackScreenProps<RootStackParamList, 'Login'> & {
   onLoginSuccess?: () => void;
   error?: string;
@@ -29,9 +27,8 @@ type Props = NativeStackScreenProps<RootStackParamList, 'Login'> & {
 
 const LoginScreen: React.FC<Props> = ({ onLoginSuccess, error }) => {
   const navigation = useNavigation<any>();
-  const { setProfileData } = useUserProfile();
+  const { setProfileData, refreshProfile } = useUserProfile();
 
-  // allow user to enter email or nickname here
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -44,30 +41,49 @@ const LoginScreen: React.FC<Props> = ({ onLoginSuccess, error }) => {
 
     setIsLoading(true);
     try {
-      const { data, error: loginError } = await apiClient.post(
-        API_ENDPOINTS.LOGIN,
-        { username, password }
-      );
+      console.log('[LoginScreen] 请求登录接口:', { username, password });
 
-      if (data && !loginError) {
-        // save tokens
-        await tokenManager.saveTokens(data.accessToken, data.refreshToken);
+      const { data, error: loginError } = await apiClient.post<{
+        accessToken: string;
+        refreshToken: string;
+        userUuid: string;
+        email: string;
+        nickname: string;
+      }>(API_ENDPOINTS.LOGIN, { username, password });
 
-        // update user context
-        setProfileData((prev) => ({
-          ...prev,
-          uuid: data.userUuid,
-          email: data.email,
-          nickname: data.nickname,
-        }));
-
-        onLoginSuccess?.();
-        navigation.replace('Step1Screen');
-      } else {
-        Alert.alert('登录失败', loginError || '邮箱/昵称或密码错误');
+      if (loginError) {
+        console.log('[LoginScreen] 登录失败 error:', loginError);
+        Alert.alert('登录失败', loginError);
+        return;
       }
-    } catch (err) {
-      console.error('Login error:', err);
+
+      if (!data) {
+        console.log('[LoginScreen] 登录失败，返回空数据');
+        Alert.alert('登录失败', '服务器返回空数据');
+        return;
+      }
+
+      console.log('[LoginScreen] 登录成功，收到数据:', data);
+
+      // 保存 token
+      await tokenManager.saveTokens(data.accessToken, data.refreshToken);
+      console.log('[LoginScreen] token 已保存');
+
+      // 设置 context 的 uuid（为 refreshProfile 做准备）
+      setProfileData((prev) => {
+        const next = { ...prev, uuid: data.userUuid };
+        console.log('[LoginScreen] setProfileData 设置 uuid:', next);
+        return next;
+      });
+
+      // 拉取完整用户 profile（刷新 context 数据）
+      console.log('[LoginScreen] 即将调用 refreshProfile');
+      await refreshProfile();
+      console.log('[LoginScreen] refreshProfile 完成');
+      onLoginSuccess?.();
+      navigation.replace('Step1Screen');
+    } catch (err: any) {
+      console.error('[LoginScreen] 登录失败:', err);
       Alert.alert('网络错误', '无法连接到服务器');
     } finally {
       setIsLoading(false);
@@ -78,9 +94,7 @@ const LoginScreen: React.FC<Props> = ({ onLoginSuccess, error }) => {
     <View style={styles.container}>
       <View style={styles.form}>
         <Text style={styles.title}>登录</Text>
-
         {error && <Text style={styles.error}>{error}</Text>}
-
         <TextInput
           placeholder="邮箱或昵称"
           placeholderTextColor={Colors.textSecondary}
@@ -99,7 +113,6 @@ const LoginScreen: React.FC<Props> = ({ onLoginSuccess, error }) => {
           secureTextEntry
           editable={!isLoading}
         />
-
         <TouchableOpacity
           style={[styles.button, isLoading && styles.buttonDisabled]}
           onPress={handleLogin}
@@ -111,7 +124,6 @@ const LoginScreen: React.FC<Props> = ({ onLoginSuccess, error }) => {
             <Text style={styles.buttonText}>登录</Text>
           )}
         </TouchableOpacity>
-
         <TouchableOpacity
           onPress={() => navigation.navigate('Register')}
           disabled={isLoading}

@@ -10,6 +10,8 @@ import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 import lombok.RequiredArgsConstructor;
 import lombok.Value;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
@@ -24,6 +26,8 @@ import java.util.UUID;
 @RequiredArgsConstructor
 @Validated
 public class AuthController {
+
+    private static final Logger log = LoggerFactory.getLogger(AuthController.class);
 
     private final UserService userService;
     private final AuthenticationManager authenticationManager;
@@ -46,6 +50,8 @@ public class AuthController {
     /* ---------- 注册 ---------- */
     @PostMapping("/register")
     public ResponseEntity<JwtResponse> register(@RequestBody @Validated RegisterReq req) {
+        log.info("[📝 /register] 收到注册请求: email={}, nickname={}", req.getEmail(), req.getNickname());
+
         UserDto dto = userService.register(req.getEmail(), req.getPassword(), req.getNickname());
         String accessToken = jwtUtils.generateAccessToken(dto.getUuid(), dto.getEmail());
         String refreshToken = jwtUtils.generateRefreshToken(dto.getUuid());
@@ -58,20 +64,28 @@ public class AuthController {
                 .nickname(dto.getNickname())
                 .build();
 
+        log.info("[✅ /register] 注册成功，用户UUID: {}", dto.getUuid());
         return ResponseEntity.ok(response);
     }
 
     /* ---------- 登录 ---------- */
     @PostMapping("/login")
     public ResponseEntity<JwtResponse> login(@RequestBody @Validated LoginReq req) {
-        // 通过 AuthenticationManager 处理 email 或 nickname
+        log.info("[🔐 /login] 收到登录请求 username = {}", req.getUsername());
+
         Authentication authentication = authenticationManager.authenticate(
                 new UsernamePasswordAuthenticationToken(req.getUsername(), req.getPassword())
         );
 
-        // authentication.getName() 始终是用户的 email
-        String principalEmail = authentication.getName();
-        UserDto dto = userService.getUserByEmail(principalEmail);
+        log.info("[🔐 /login] 认证成功，authentication.getName() = {}", authentication.getName());
+
+        String userUuidStr = authentication.getName();
+        UUID userUuid = UUID.fromString(userUuidStr);
+
+        log.info("[🔐 /login] 准备调用 userService.getUserByUuid，UUID = {}", userUuid);
+        UserDto dto = userService.getUserByUuid(userUuid);
+
+        log.info("[🔐 /login] 用户信息查询成功，昵称 = {}, email = {}", dto.getNickname(), dto.getEmail());
 
         String accessToken = jwtUtils.generateAccessToken(dto.getUuid(), dto.getEmail());
         String refreshToken = jwtUtils.generateRefreshToken(dto.getUuid());
@@ -92,6 +106,8 @@ public class AuthController {
     public ResponseEntity<JwtResponse> refreshToken(@RequestBody @Validated RefreshTokenRequest req) {
         String refreshToken = req.getRefreshToken();
 
+        log.info("[♻️ /refresh] 收到刷新请求");
+
         if (jwtUtils.validateToken(refreshToken) && "REFRESH".equals(jwtUtils.getTokenType(refreshToken))) {
             UUID userUuid = jwtUtils.getUserUuidFromToken(refreshToken);
             UserDto dto = userService.getUserByUuid(userUuid);
@@ -107,9 +123,11 @@ public class AuthController {
                     .nickname(dto.getNickname())
                     .build();
 
+            log.info("[♻️ /refresh] 刷新成功，UUID: {}", dto.getUuid());
             return ResponseEntity.ok(response);
         }
 
+        log.warn("[♻️ /refresh] 无效或过期的刷新Token");
         return ResponseEntity.status(401).build();
     }
 }

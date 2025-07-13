@@ -5,6 +5,9 @@ import com.zusa.backend.entity.user.*;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.*;
 import lombok.*;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.annotations.Type;
+import org.hibernate.type.SqlTypes;
 
 import java.time.LocalDate;
 import java.util.*;
@@ -30,8 +33,10 @@ public class User {
 
     /** 对外安全 UUID */
     @Builder.Default
-    @Column(nullable = false, updatable = false, unique = true)
+    @JdbcTypeCode(SqlTypes.BINARY)
+    @Column(name = "uuid", columnDefinition = "BINARY(16)", nullable = false, updatable = false, unique = true)
     private UUID uuid = UUID.randomUUID();
+
 
     /** 登录邮箱 */
     @Column(nullable = false, unique = true, length = 120)

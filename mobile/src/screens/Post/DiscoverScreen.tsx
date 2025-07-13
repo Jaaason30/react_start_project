@@ -1,3 +1,5 @@
+// src/screens/DiscoverScreen.tsx
+
 import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
@@ -16,8 +18,8 @@ import LinearGradient from 'react-native-linear-gradient';
 import { styles } from '../../theme/DiscoverScreen.styles';
 import { apiClient } from '../../services/apiClient';
 import { API_ENDPOINTS } from '../../constants/api';
+import { DiscoverBanner } from './components/DiscoverBanner';
 
-// Platform-specific host
 const HOST = Platform.OS === 'android' ? '10.0.2.2' : 'localhost';
 const BASE_URL = `http://${HOST}:8080`;
 console.log('[DiscoverScreen] BASE_URL =', BASE_URL);
@@ -99,15 +101,6 @@ export default function DiscoverScreen() {
       setUri(getCoverUrl(item));
     }, [item]);
 
-    const handleError = () => {
-      console.warn('[FastImage onError]', item.uuid);
-      setUri('https://via.placeholder.com/400x600');
-    };
-
-    const handleLoad = (e: OnLoadEvent) => {
-      console.log('[FastImage onLoad]', item.uuid, uri, e.nativeEvent);
-    };
-
     return (
       <TouchableOpacity
         style={styles.card}
@@ -118,8 +111,8 @@ export default function DiscoverScreen() {
           source={{ uri }}
           style={styles.cardImage}
           resizeMode={FastImage.resizeMode.cover}
-          onError={handleError}
-          onLoad={handleLoad}
+          onError={() => setUri('https://via.placeholder.com/400x600')}
+          //onLoad={e => console.log('[FastImage onLoad]', item.uuid, uri, e.nativeEvent)}
         />
         <Text style={styles.cardTitle} numberOfLines={2}>
           {item.title ?? '（无标题）'}
@@ -172,7 +165,7 @@ export default function DiscoverScreen() {
           contentContainerStyle={styles.listContent}
           refreshing={refreshing}
           onRefresh={onRefresh}
-          onEndReachedThreshold={0.5}
+          ListHeaderComponent={<DiscoverBanner />}
         />
       )}
 
