@@ -17,6 +17,8 @@ import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import FastImage from 'react-native-fast-image';
 import { useUserProfile } from '../../contexts/UserProfileContext';
 import { styles } from '../../theme/PlayerProfileScreen.styles';
+import { apiClient } from '../../services/apiClient';
+import { API_ENDPOINTS } from '../../constants/api';
 
 const { width } = Dimensions.get('window');
 const FULL_BASE_URL = 'http://10.0.2.2:8080';
@@ -37,7 +39,6 @@ type RootStackParamList = {
   PostDetail: { post: any };
   EditProfile: undefined;
 };
-
 type NavType   = NativeStackNavigationProp<RootStackParamList>;
 type RouteType = RouteProp<RootStackParamList, 'PlayerProfile'>;
 
@@ -55,47 +56,82 @@ export default function PlayerProfileScreen() {
   const route      = useRoute<RouteType>();
   const { profileData, avatarVersion } = useUserProfile();
 
-  const [userData,     setUserData]     = useState<any|null>(null);
+  const [userData,     setUserData]     = useState<any | null>(null);
   const [posts,        setPosts]        = useState<PostItem[]>([]);
   const [activeBottom, setActiveBottom] = useState<BottomKey>('me');
+  const [isLoading,    setIsLoading]    = useState<boolean>(true);
+  const [error,        setError]        = useState<string | null>(null);
 
-  // 只给头像和相册加版本号
-  const withVersion = (url: string) => `${url}?v=${avatarVersion}`;
+  // 是否允许编辑
+  const canEdit: boolean = route.params?.userId
+    ? route.params.userId === profileData?.uuid
+    : true;
+  const disabledEdit: boolean = !canEdit;
 
   useEffect(() => {
     const uuid = route.params?.userId ?? profileData?.uuid;
-    if (!uuid) return;
+    if (!uuid) {
+      setIsLoading(false);
+      return;
+    }
 
-    // 拉取用户资料
-    (async () => {
+    const fetchData = async () => {
+      setIsLoading(true);
+      setError(null);
       try {
-        const resp = await fetch(`${FULL_BASE_URL}/api/user/profile?userUuid=${uuid}`);
-        const data = await resp.json();
-        setUserData(data);
-      } catch (err) {
-        console.error('[FetchProfile]', err);
-      }
-    })();
-
-    // 拉取用户帖子
-    (async () => {
-      try {
-        const resp = await fetch(
-          `${FULL_BASE_URL}/api/posts/user/${uuid}?page=0&size=20`,
-          { credentials: 'include' }
+        // 拉取用户资料
+        const profileResponse = await apiClient.get<any>(
+          `${API_ENDPOINTS.USER_PROFILE}?userUuid=${uuid}`
         );
-        const data = await resp.json();
-        setPosts(data.content || []);
+        if (profileResponse.error) {
+          setError(profileResponse.error);
+        } else if (profileResponse.data) {
+          setUserData(profileResponse.data);
+        }
+
+        // 拉取用户帖子
+        const postsResponse = await apiClient.get<{ content: PostItem[] }>(
+          `${API_ENDPOINTS.POSTS_BY_AUTHOR.replace(':authorUuid', uuid)}?page=0&size=20`
+        );
+        if (postsResponse.data) {
+          setPosts(postsResponse.data.content || []);
+        }
       } catch (err) {
-        console.error('[FetchPosts]', err);
+        setError('加载失败，请重试');
+      } finally {
+        setIsLoading(false);
       }
-    })();
+    };
+
+    fetchData();
   }, [route.params?.userId, profileData?.uuid, avatarVersion]);
 
-  if (userData === null) {
+  if (isLoading) {
     return (
       <SafeAreaView style={styles.loadingContainer}>
         <ActivityIndicator size="large" />
+      </SafeAreaView>
+    );
+  }
+
+  if (error) {
+    return (
+      <SafeAreaView style={styles.loadingContainer}>
+        <Text style={{ color: '#666', marginBottom: 16 }}>{error}</Text>
+        <TouchableOpacity
+          style={styles.backButton}
+          onPress={() => navigation.goBack()}
+        >
+          <Text style={{ color: '#333' }}>返回</Text>
+        </TouchableOpacity>
+      </SafeAreaView>
+    );
+  }
+
+  if (!userData) {
+    return (
+      <SafeAreaView style={styles.loadingContainer}>
+        <Text style={{ color: '#666' }}>暂无用户信息</Text>
       </SafeAreaView>
     );
   }
@@ -104,11 +140,9 @@ export default function PlayerProfileScreen() {
   const avatarBase = userData.profilePictureUrl
     ? `${FULL_BASE_URL}${userData.profilePictureUrl}`
     : 'https://via.placeholder.com/200x200.png?text=No+Avatar';
-  const avatarUri = withVersion(avatarBase);
+  const avatarUri = `${avatarBase}?v=${avatarVersion}`;
 
-  // 渲染帖子卡片
   const renderPost = ({ item }: { item: PostItem }) => {
-    // 不给 coverUrl 加版本号，保持原始链接
     const coverUri = item.coverUrl
       ? (item.coverUrl.startsWith('http')
           ? item.coverUrl
@@ -124,9 +158,7 @@ export default function PlayerProfileScreen() {
         style={styles.card}
         activeOpacity={0.8}
         onPress={() =>
-          navigation.navigate('PostDetail', {
-            post: { ...item, coverUrl: coverUri },
-          })
+          navigation.navigate('PostDetail', { post: { ...item, coverUri } })
         }
       >
         <FastImage
@@ -150,17 +182,26 @@ export default function PlayerProfileScreen() {
 
   return (
     <SafeAreaView style={styles.container}>
-      {/* Top bar */}
+      {/* 顶部栏 */}
       <View style={styles.topBar}>
-        <Text style={styles.headerTitle}>我的资料</Text>
-        <TouchableOpacity onPress={() => navigation.navigate('EditProfile')}>
-          <Ionicons name="settings-outline" size={24} color="#222" />
-        </TouchableOpacity>
+        <Text style={styles.headerTitle}>
+          {route.params?.userId && route.params.userId !== profileData?.uuid
+            ? '用户资料'
+            : '我的资料'}
+        </Text>
+        {canEdit && (
+          <TouchableOpacity onPress={() => navigation.navigate('EditProfile')}>
+            <Ionicons name="settings-outline" size={24} color="#222" />
+          </TouchableOpacity>
+        )}
       </View>
 
-      {/* 头像 + 基本信息 */}
+      {/* 头像 & 基本信息 */}
       <View style={styles.identitySection}>
-        <TouchableOpacity onPress={() => navigation.navigate('EditProfile')}>
+        <TouchableOpacity
+          onPress={() => navigation.navigate('EditProfile')}
+          disabled={disabledEdit}
+        >
           <FastImage
             source={{ uri: avatarUri }}
             style={styles.avatar}
@@ -169,13 +210,11 @@ export default function PlayerProfileScreen() {
         </TouchableOpacity>
         <View style={styles.identityText}>
           <Text style={styles.username}>{userData.nickname}</Text>
-          <Text style={styles.userId}>
-            ID: {userData.shortId ?? '未设置'}
-          </Text>
+          <Text style={styles.userId}>ID: {userData.shortId ?? '未设置'}</Text>
         </View>
       </View>
 
-      {/* 粉丝/关注统计 */}
+      {/* 粉丝 / 关注 */}
       <View style={styles.statsRow}>
         <TouchableOpacity style={styles.statItem}>
           <Text style={styles.statNumber}>{userData.followerCount ?? 0}</Text>
@@ -187,7 +226,7 @@ export default function PlayerProfileScreen() {
         </TouchableOpacity>
       </View>
 
-      {/* 相册预览（带版本号） */}
+      {/* 相册预览 */}
       {Array.isArray(userData.albumUrls) && userData.albumUrls.length > 0 && (
         <ScrollView
           horizontal
@@ -199,7 +238,7 @@ export default function PlayerProfileScreen() {
             return (
               <FastImage
                 key={idx}
-                source={{ uri: withVersion(base) }}
+                source={{ uri: `${base}?v=${avatarVersion}` }}
                 style={styles.albumImage}
                 resizeMode={FastImage.resizeMode.cover}
               />
@@ -211,14 +250,19 @@ export default function PlayerProfileScreen() {
       {/* 帖子列表 */}
       <FlatList
         data={posts}
-        keyExtractor={item => item.uuid}
+        keyExtractor={(item) => item.uuid}
         renderItem={renderPost}
         contentContainerStyle={styles.postListContainer}
+        ListEmptyComponent={
+          <View style={styles.emptyContainer}>
+            <Text style={styles.emptyText}>暂无帖子</Text>
+          </View>
+        }
       />
 
       {/* 底部导航 */}
       <View style={styles.bottomNav}>
-        {BOTTOM_TABS.map(t => (
+        {BOTTOM_TABS.map((t) => (
           <TouchableOpacity
             key={t.key}
             onPress={() => {

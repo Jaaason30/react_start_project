@@ -10,13 +10,35 @@ export const styles = StyleSheet.create({
     backgroundColor: '#fff',
     padding: 16,
   },
-  header: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    marginBottom: 16,
-    color: '#222',
-    textAlign: 'center',
+
+  // 顶部返回栏
+  topBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    backgroundColor: '#fff',
+    borderBottomWidth: 1,
+    borderBottomColor: '#eee',
   },
+  backButton: {
+    padding: 4,
+  },
+  topBarTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#222',
+  },
+
+  // Loading 状态全屏居中
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+
+  // 文本标签与输入框
   label: {
     fontSize: 14,
     color: '#555',
@@ -31,6 +53,8 @@ export const styles = StyleSheet.create({
     fontSize: 16,
     backgroundColor: '#f9f9f9',
   },
+
+  // 基础按钮
   button: {
     backgroundColor: '#007bff',
     padding: 12,
@@ -43,6 +67,11 @@ export const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
   },
+  buttonDisabled: {
+    backgroundColor: '#a0c4ff',
+  },
+
+  // 保存按钮
   saveButton: {
     backgroundColor: '#28a745',
     padding: 14,
@@ -56,6 +85,11 @@ export const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: 'bold',
   },
+  saveButtonDisabled: {
+    backgroundColor: '#94d3a2',
+  },
+
+  // 头像预览
   imagePreview: {
     width: width * 0.4,
     height: width * 0.4,
@@ -63,41 +97,17 @@ export const styles = StyleSheet.create({
     marginTop: 8,
     alignSelf: 'center',
   },
+
+  // 相册预览
+  albumWrapper: {
+    position: 'relative',
+    marginRight: 8,
+    marginTop: 8,
+  },
   albumPreview: {
     width: 80,
     height: 80,
     borderRadius: 8,
-    marginRight: 8,
-    marginTop: 8,
-  },
-
-  // ====== 新增用于兴趣与场所多选展示 ======
-  optionsContainer: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    marginTop: 8,
-  },
-  optionItem: {
-    paddingVertical: 8,
-    paddingHorizontal: 12,
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: '#ccc',
-    backgroundColor: '#f2f2f2',
-    margin: 4,
-  },
-  optionItemSelected: {
-    backgroundColor: '#007bff',
-    borderColor: '#007bff',
-  },
-  optionText: {
-    fontSize: 14,
-    color: '#333',
-  },
-    albumWrapper: {
-    position: 'relative',
-    marginRight: 8,
-    marginTop: 8,
   },
   removeButton: {
     position: 'absolute',
@@ -127,26 +137,28 @@ export const styles = StyleSheet.create({
     fontSize: 30,
     color: '#666',
   },
-topBar: {
-  flexDirection: 'row',
-  alignItems: 'center',
-  justifyContent: 'space-between',
-  paddingHorizontal: 16,
-  paddingVertical: 12,
-  backgroundColor: '#fff',
-  borderBottomWidth: 1,
-  borderBottomColor: '#eee',
-},
 
-backButton: {
-  padding: 4,
-},
-
-topBarTitle: {
-  fontSize: 18,
-  fontWeight: '600',
-  color: '#222',
-},
-
+  // 兴趣 & 场所 标签展示
+  optionsContainer: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    marginTop: 8,
+  },
+  optionItem: {
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: '#ccc',
+    backgroundColor: '#f2f2f2',
+    margin: 4,
+  },
+  optionItemSelected: {
+    backgroundColor: '#007bff',
+    borderColor: '#007bff',
+  },
+  optionText: {
+    fontSize: 14,
+    color: '#333',
+  },
 });
-
