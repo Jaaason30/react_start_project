@@ -20,32 +20,32 @@ public interface UserService {
     UserDto login(String username, String password);
 
     /**
-     * 根据UUID查询用户资料
+     * 根据 UUID 查询用户资料
      */
     UserDto getUserProfileByUuid(UUID uuid);
 
     /**
-     * 根据shortId查询用户资料
+     * 根据 shortId 查询用户资料
      */
     UserDto getUserProfileByShortId(Long shortId);
 
     /**
-     * 关注用户
+     * 关注用户（使用 UUID）
      */
     void follow(UUID userUuid, UUID targetUuid);
 
     /**
-     * 取消关注
+     * 取消关注（使用 UUID）
      */
     void unfollow(UUID userUuid, UUID targetUuid);
 
     /**
-     * 获取粉丝列表
+     * 获取粉丝列表（使用 UUID）
      */
     Page<UserSummaryDto> listFollowers(UUID userUuid, Pageable pageable);
 
     /**
-     * 获取关注列表
+     * 获取关注列表（使用 UUID）
      */
     Page<UserSummaryDto> listFollowing(UUID userUuid, Pageable pageable);
 
@@ -55,12 +55,34 @@ public interface UserService {
     void updateProfilePartially(UserDto req, UUID userUuid);
 
     /**
-     * 通过邮箱获取用户信息 - JWT认证需要
+     * 通过邮箱获取用户信息 - JWT 认证需要
      */
     UserDto getUserByEmail(String email);
 
     /**
-     * 通过UUID获取用户信息 - JWT刷新token需要
+     * 通过 UUID 获取用户信息 - JWT 刷新 token 需要
      */
     UserDto getUserByUuid(UUID uuid);
+
+    // ==================== 新增 shortId 支持 ====================
+
+    /**
+     * 关注用户（使用 shortId）
+     */
+    void followByShortId(UUID userUuid, Long targetShortId);
+
+    /**
+     * 取消关注（使用 shortId）
+     */
+    void unfollowByShortId(UUID userUuid, Long targetShortId);
+
+    /**
+     * 获取指定 shortId 用户的粉丝列表
+     */
+    Page<UserSummaryDto> listFollowersByShortId(Long shortId, Pageable pageable);
+
+    /**
+     * 获取指定 shortId 用户的关注列表
+     */
+    Page<UserSummaryDto> listFollowingByShortId(Long shortId, Pageable pageable);
 }

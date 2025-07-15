@@ -12,31 +12,34 @@ export const API_ENDPOINTS = {
   REGISTER: '/api/auth/register',
   REFRESH: '/api/auth/refresh',
 
-  // User
-  USER_PROFILE: '/api/user/profile',
-  USER_PROFILE_SHORT: '/api/user/profile/short',
-  USER_UPDATE: '/api/user/profile',
-  USER_FOLLOW: '/api/user/follow',
-  USER_FOLLOWERS: '/api/user/followers',
-  USER_FOLLOWING: '/api/user/following',
+  // 当前用户接口（JWT）
+  USER_ME: '/api/user/me',
+  USER_ME_UPDATE: '/api/user/me',
+  USER_ME_FOLLOWERS: '/api/user/me/followers',
+  USER_ME_FOLLOWING: '/api/user/me/following',
 
-  // Posts
+  // 其它用户接口（shortId）
+  USER_BY_SHORT_ID: '/api/user/profile/short',      // + '/{shortId}'
+  USER_FOLLOW: '/api/user/follow',                  // + '/{shortId}' (POST/DELETE)
+  USER_FOLLOWERS_BY_SHORT_ID: '/api/user',          // + '/{shortId}/followers'
+  USER_FOLLOWING_BY_SHORT_ID: '/api/user',          // + '/{shortId}/following'
+
+  // 帖子
   POSTS_FEED: '/api/posts/feed',
-  POST_DETAIL: '/api/posts',                      // GET /api/posts/{uuid}
+  POSTS_ME: '/api/posts/me',
+  POSTS_BY_AUTHOR: '/api/posts/user/:authorUuid',   // + '?page=…&size=…' （使用 UUID）
+  POST_DETAIL: '/api/posts',                        // GET '/api/posts/{uuid}'
   POST_REACTIONS: '/api/posts/:uuid/reactions',
   POST_COMMENTS: '/api/posts/:uuid/comments',
 
-  // Search
-  POSTS_SEARCH: '/api/posts/search',               // GET /api/posts/search?kw=…&shortId=…
-  
-  // Tags
-  TAGS_HOT: '/api/tags/hot',                       // GET /api/tags/hot?limit=…
+  // 搜索
+  POSTS_SEARCH: '/api/posts/search',                 // GET '/api/posts/search?kw=…&shortId=…'
 
-  // Comments
+  // 标签
+  TAGS_HOT: '/api/tags/hot',                         // GET '/api/tags/hot?limit=…'
+
+  // 评论
   COMMENT_LIKES: '/api/comments/:id/likes',
   COMMENT_REPLIES: '/api/comments/:id/replies',
   COMMENT_DELETE: '/api/comments/:id',
-
-  // Posts by author
-  POSTS_BY_AUTHOR: '/api/posts/user/:authorUuid'
 } as const;

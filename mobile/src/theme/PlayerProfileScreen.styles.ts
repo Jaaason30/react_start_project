@@ -6,20 +6,15 @@ const { width } = Dimensions.get('window');
 const PHOTO_SIZE = (width - 32 - 12) / 3;
 
 export const styles = StyleSheet.create({
-  // 整体容器
   container: {
     flex: 1,
     backgroundColor: '#fff',
   },
-
-  // 顶部返回按钮（用于错误页面的“返回”）
   backButton: {
     padding: 10,
     backgroundColor: '#eee',
     borderRadius: 4,
   },
-
-  // 顶部栏
   topBar: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -35,16 +30,20 @@ export const styles = StyleSheet.create({
     fontWeight: 'bold',
     color: '#222',
   },
-
-  // 加载态
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
     backgroundColor: '#fff',
   },
-
-  // “暂无帖子” 空白态
+  errorText: {
+    color: '#666',
+    fontSize: 14,
+    marginBottom: 16,
+  },
+  backButtonText: {
+    color: '#333',
+  },
   emptyContainer: {
     flex: 1,
     alignItems: 'center',
@@ -54,8 +53,6 @@ export const styles = StyleSheet.create({
     color: '#888',
     fontSize: 14,
   },
-
-  // “身份” 区块：头像 + 昵称 + ID
   identitySection: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -84,8 +81,6 @@ export const styles = StyleSheet.create({
     fontSize: 12,
     marginTop: 4,
   },
-
-  // 粉丝 / 关注 统计
   statsRow: {
     flexDirection: 'row',
     justifyContent: 'space-around',
@@ -105,8 +100,6 @@ export const styles = StyleSheet.create({
     fontSize: 12,
     marginTop: 2,
   },
-
-  // 相册横向滚动
   albumScroll: {
     paddingHorizontal: 16,
     marginVertical: 12,
@@ -119,14 +112,10 @@ export const styles = StyleSheet.create({
     backgroundColor: '#ddd',
     marginRight: 12,
   },
-
-  // 帖子列表容器
   postListContainer: {
     paddingBottom: 72,
     backgroundColor: '#fff',
   },
-
-  // 帖子卡片
   card: {
     margin: 16,
     backgroundColor: '#f9f9f9',
@@ -164,8 +153,6 @@ export const styles = StyleSheet.create({
     fontSize: 12,
     color: '#888',
   },
-
-  // 底部导航
   bottomNav: {
     flexDirection: 'row',
     justifyContent: 'space-around',

@@ -18,28 +18,19 @@ import FastImage from 'react-native-fast-image';
 import { useUserProfile } from '../../contexts/UserProfileContext';
 import { styles } from '../../theme/PlayerProfileScreen.styles';
 import { apiClient } from '../../services/apiClient';
-import { API_ENDPOINTS } from '../../constants/api';
+import { API_ENDPOINTS, BASE_URL } from '../../constants/api';
 
 const { width } = Dimensions.get('window');
-const FULL_BASE_URL = 'http://10.0.2.2:8080';
-
-const BOTTOM_TABS = [
-  { key: 'match',  label: '匹配', icon: 'heart-outline',       screen: 'Dashboard' },
-  { key: 'chat',   label: '聊天', icon: 'chatbubbles-outline', screen: 'SeatOverview' },
-  { key: 'square', label: '广场', icon: 'apps-outline',        screen: 'Discover' },
-  { key: 'me',     label: '我的', icon: 'person-outline',      screen: 'PlayerProfile' },
-] as const;
-type BottomKey = typeof BOTTOM_TABS[number]['key'];
 
 type RootStackParamList = {
   Dashboard: undefined;
   SeatOverview: undefined;
   Discover: undefined;
-  PlayerProfile: { userId?: string };
+  PlayerProfile: { shortId?: number; userId?: string };
   PostDetail: { post: any };
   EditProfile: undefined;
 };
-type NavType   = NativeStackNavigationProp<RootStackParamList>;
+type NavType = NativeStackNavigationProp<RootStackParamList>;
 type RouteType = RouteProp<RootStackParamList, 'PlayerProfile'>;
 
 type PostItem = {
@@ -53,58 +44,67 @@ type PostItem = {
 
 export default function PlayerProfileScreen() {
   const navigation = useNavigation<NavType>();
-  const route      = useRoute<RouteType>();
+  const route = useRoute<RouteType>();
   const { profileData, avatarVersion } = useUserProfile();
 
-  const [userData,     setUserData]     = useState<any | null>(null);
-  const [posts,        setPosts]        = useState<PostItem[]>([]);
-  const [activeBottom, setActiveBottom] = useState<BottomKey>('me');
-  const [isLoading,    setIsLoading]    = useState<boolean>(true);
-  const [error,        setError]        = useState<string | null>(null);
+  const [userData, setUserData] = useState<any | null>(null);
+  const [posts, setPosts] = useState<PostItem[]>([]);
+  const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [error, setError] = useState<string | null>(null);
 
-  // 是否允许编辑
-  const canEdit: boolean = route.params?.userId
-    ? route.params.userId === profileData?.uuid
-    : true;
-  const disabledEdit: boolean = !canEdit;
+  // 确定资料拉取方式：shortId 用于其它数据，posts 始终用 UUID
+  const targetShortId = route.params?.shortId;
+  const authorUuid = route.params?.userId ?? profileData?.uuid;
+  const isOwnProfile = !targetShortId || targetShortId === profileData?.shortId;
 
   useEffect(() => {
-    const uuid = route.params?.userId ?? profileData?.uuid;
-    if (!uuid) {
-      setIsLoading(false);
-      return;
-    }
-
     const fetchData = async () => {
       setIsLoading(true);
       setError(null);
-      try {
-        // 拉取用户资料
-        const profileResponse = await apiClient.get<any>(
-          `${API_ENDPOINTS.USER_PROFILE}?userUuid=${uuid}`
-        );
-        if (profileResponse.error) {
-          setError(profileResponse.error);
-        } else if (profileResponse.data) {
-          setUserData(profileResponse.data);
-        }
 
-        // 拉取用户帖子
-        const postsResponse = await apiClient.get<{ content: PostItem[] }>(
-          `${API_ENDPOINTS.POSTS_BY_AUTHOR.replace(':authorUuid', uuid)}?page=0&size=20`
-        );
-        if (postsResponse.data) {
-          setPosts(postsResponse.data.content || []);
+      try {
+        // —— 拉用户资料 —— (shortId or JWT)
+        const profileRes = isOwnProfile
+          ? await apiClient.get<any>(API_ENDPOINTS.USER_ME)
+          : await apiClient.get<any>(
+              `${API_ENDPOINTS.USER_BY_SHORT_ID}/${targetShortId}`
+            );
+
+        if (profileRes.error) {
+          setError(profileRes.error);
+          return;
         }
-      } catch (err) {
-        setError('加载失败，请重试');
+        setUserData(profileRes.data);
+
+        // —— 拉帖子列表 —— 始终使用 UUID
+        const postsRes = await apiClient.get<{ content: PostItem[] }>(
+          `${API_ENDPOINTS.POSTS_BY_AUTHOR.replace(
+            ':authorUuid',
+            authorUuid!
+          )}?page=0&size=20`
+        );
+        if (postsRes.error) {
+          console.warn('Load posts error:', postsRes.error);
+        } else {
+          setPosts(postsRes.data?.content || []);
+        }
+      } catch (err: any) {
+        setError(err.message || '加载失败，请重试');
       } finally {
         setIsLoading(false);
       }
     };
 
-    fetchData();
-  }, [route.params?.userId, profileData?.uuid, avatarVersion]);
+    if (authorUuid !== undefined) {
+      fetchData();
+    }
+  }, [
+    route.params?.shortId,
+    route.params?.userId,
+    profileData?.shortId,
+    profileData?.uuid,
+    avatarVersion,
+  ]);
 
   if (isLoading) {
     return (
@@ -113,59 +113,44 @@ export default function PlayerProfileScreen() {
       </SafeAreaView>
     );
   }
-
   if (error) {
     return (
       <SafeAreaView style={styles.loadingContainer}>
-        <Text style={{ color: '#666', marginBottom: 16 }}>{error}</Text>
-        <TouchableOpacity
-          style={styles.backButton}
-          onPress={() => navigation.goBack()}
-        >
-          <Text style={{ color: '#333' }}>返回</Text>
+        <Text style={styles.errorText}>{error}</Text>
+        <TouchableOpacity style={styles.backButton} onPress={() => navigation.goBack()}>
+          <Text style={styles.backButtonText}>返回</Text>
         </TouchableOpacity>
       </SafeAreaView>
     );
   }
-
   if (!userData) {
     return (
       <SafeAreaView style={styles.loadingContainer}>
-        <Text style={{ color: '#666' }}>暂无用户信息</Text>
+        <Text style={styles.errorText}>暂无用户信息</Text>
       </SafeAreaView>
     );
   }
 
-  // 构造头像 URI（带版本号）
-  const avatarBase = userData.profilePictureUrl
-    ? `${FULL_BASE_URL}${userData.profilePictureUrl}`
+  const avatarUri = userData.profilePictureUrl
+    ? `${BASE_URL}${userData.profilePictureUrl}?v=${avatarVersion}`
     : 'https://via.placeholder.com/200x200.png?text=No+Avatar';
-  const avatarUri = `${avatarBase}?v=${avatarVersion}`;
 
   const renderPost = ({ item }: { item: PostItem }) => {
     const coverUri = item.coverUrl
-      ? (item.coverUrl.startsWith('http')
-          ? item.coverUrl
-          : FULL_BASE_URL + item.coverUrl)
-      : item.images && item.images.length > 0
-      ? (item.images[0].url.startsWith('http')
-          ? item.images[0].url
-          : FULL_BASE_URL + item.images[0].url)
+      ? (item.coverUrl.startsWith('http') ? item.coverUrl : BASE_URL + item.coverUrl)
+      : item.images?.[0]?.url
+      ? (item.images![0].url.startsWith('http')
+          ? item.images![0].url
+          : BASE_URL + item.images![0].url)
       : 'https://via.placeholder.com/400x600.png?text=No+Image';
 
     return (
       <TouchableOpacity
         style={styles.card}
         activeOpacity={0.8}
-        onPress={() =>
-          navigation.navigate('PostDetail', { post: { ...item, coverUri } })
-        }
+        onPress={() => navigation.navigate('PostDetail', { post: { ...item, coverUri } })}
       >
-        <FastImage
-          source={{ uri: coverUri }}
-          style={styles.cardImage}
-          resizeMode={FastImage.resizeMode.cover}
-        />
+        <FastImage source={{ uri: coverUri }} style={styles.cardImage} resizeMode="cover" />
         <Text style={styles.cardTitle} numberOfLines={2}>
           {item.title ?? '（无标题）'}
         </Text>
@@ -184,12 +169,8 @@ export default function PlayerProfileScreen() {
     <SafeAreaView style={styles.container}>
       {/* 顶部栏 */}
       <View style={styles.topBar}>
-        <Text style={styles.headerTitle}>
-          {route.params?.userId && route.params.userId !== profileData?.uuid
-            ? '用户资料'
-            : '我的资料'}
-        </Text>
-        {canEdit && (
+        <Text style={styles.headerTitle}>{isOwnProfile ? '我的资料' : '用户资料'}</Text>
+        {isOwnProfile && (
           <TouchableOpacity onPress={() => navigation.navigate('EditProfile')}>
             <Ionicons name="settings-outline" size={24} color="#222" />
           </TouchableOpacity>
@@ -198,16 +179,7 @@ export default function PlayerProfileScreen() {
 
       {/* 头像 & 基本信息 */}
       <View style={styles.identitySection}>
-        <TouchableOpacity
-          onPress={() => navigation.navigate('EditProfile')}
-          disabled={disabledEdit}
-        >
-          <FastImage
-            source={{ uri: avatarUri }}
-            style={styles.avatar}
-            resizeMode={FastImage.resizeMode.cover}
-          />
-        </TouchableOpacity>
+        <FastImage source={{ uri: avatarUri }} style={styles.avatar} resizeMode="cover" />
         <View style={styles.identityText}>
           <Text style={styles.username}>{userData.nickname}</Text>
           <Text style={styles.userId}>ID: {userData.shortId ?? '未设置'}</Text>
@@ -228,19 +200,15 @@ export default function PlayerProfileScreen() {
 
       {/* 相册预览 */}
       {Array.isArray(userData.albumUrls) && userData.albumUrls.length > 0 && (
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          style={styles.albumScroll}
-        >
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.albumScroll}>
           {userData.albumUrls.map((uri: string, idx: number) => {
-            const base = uri.startsWith('http') ? uri : FULL_BASE_URL + uri;
+            const base = uri.startsWith('http') ? uri : BASE_URL + uri;
             return (
               <FastImage
                 key={idx}
                 source={{ uri: `${base}?v=${avatarVersion}` }}
                 style={styles.albumImage}
-                resizeMode={FastImage.resizeMode.cover}
+                resizeMode="cover"
               />
             );
           })}
@@ -259,36 +227,6 @@ export default function PlayerProfileScreen() {
           </View>
         }
       />
-
-      {/* 底部导航 */}
-      <View style={styles.bottomNav}>
-        {BOTTOM_TABS.map((t) => (
-          <TouchableOpacity
-            key={t.key}
-            onPress={() => {
-              setActiveBottom(t.key);
-              if (t.screen !== 'PlayerProfile') {
-                navigation.navigate(t.screen as any);
-              }
-            }}
-            style={styles.navItem}
-          >
-            <Ionicons
-              name={t.icon}
-              size={24}
-              color={activeBottom === t.key ? '#d81e06' : '#222'}
-            />
-            <Text
-              style={[
-                styles.navLabel,
-                activeBottom === t.key && styles.navLabelActive,
-              ]}
-            >
-              {t.label}
-            </Text>
-          </TouchableOpacity>
-        ))}
-      </View>
     </SafeAreaView>
   );
 }
