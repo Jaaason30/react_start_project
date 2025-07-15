@@ -182,10 +182,12 @@ export class ApiClient {
       }
 
       // Build headers as a Headers instance
-      const headers = new Headers({
-        'Content-Type': 'application/json',
-        ...(options.headers as Record<string, string>),
-      });
+      const headers = new Headers(options.headers as HeadersInit);
+      
+      // 只有在不是 FormData 的情况下才设置 Content-Type
+      if (!(options.body instanceof FormData)) {
+        headers.set('Content-Type', 'application/json');
+      }
 
       const currentToken = tokenManager.getAccessToken();
       if (currentToken) {
@@ -273,6 +275,21 @@ export class ApiClient {
 
   delete<T = any>(endpoint: string, options?: RequestInit) {
     return this.request<T>(endpoint, { ...options, method: 'DELETE' });
+  }
+
+  /** 文件上传方法 - 专门处理 FormData */
+  async upload<T = any>(
+    endpoint: string,
+    formData: FormData,
+    options?: RequestInit
+  ): Promise<ApiResponse<T>> {
+    // 直接传递 FormData 给 request 方法
+    // request 方法会检测到 body 是 FormData 实例，就不会设置 Content-Type
+    return this.request<T>(endpoint, {
+      ...options,
+      method: 'POST',
+      body: formData,
+    });
   }
 
   /** 清理资源（应用退出时调用） */

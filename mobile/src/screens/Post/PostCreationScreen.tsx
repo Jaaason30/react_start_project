@@ -7,15 +7,14 @@ import Ionicons from 'react-native-vector-icons/Ionicons';
 import { useNavigation } from '@react-navigation/native';
 import { launchImageLibrary } from 'react-native-image-picker';
 import { useUserProfile } from '../../contexts/UserProfileContext';
+import { apiClient } from '../../services/apiClient';
+import { API_ENDPOINTS } from '../../constants/api';
 
 const { width } = Dimensions.get('window');
 const TH_SIZE = 80;
 const GAP = 8;
 
 const mockTags = ['台球技巧', 'Snooker', '英式台球', '斯诺克教学'];
-
-// ✅ BASE_URL，后续可抽取为 constants
-const BASE_URL = Platform.OS === 'android' ? 'http://10.0.2.2:8080' : 'http://localhost:8080';
 
 const PostCreationScreen: React.FC = () => {
   const nav = useNavigation();
@@ -24,6 +23,7 @@ const PostCreationScreen: React.FC = () => {
   const [title, setTitle] = useState('');
   const [content, setContent] = useState('');
   const [selTags, setSelTags] = useState<string[]>([]);
+  const [isPosting, setIsPosting] = useState(false);
 
   const toggleTag = (t: string) =>
     setSelTags(selTags.includes(t) ? selTags.filter(x => x !== t) : [...selTags, t]);
@@ -37,18 +37,15 @@ const PostCreationScreen: React.FC = () => {
 
   const handlePost = async () => {
     if (!title.trim() || !content.trim() || imgs.length === 0) {
-      Alert.alert('请填写标题、正文并选择至少一张图片');
+      Alert.alert('提示', '请填写标题、正文并选择至少一张图片');
       return;
     }
-    if (!profileData?.uuid) {
-      Alert.alert('无法获取当前用户，请重新登录');
-      return;
-    }
+
+    setIsPosting(true);
 
     const formData = new FormData();
     formData.append('title', title.trim());
     formData.append('content', content.trim());
-    formData.append('authorUuid', profileData.uuid);
     selTags.forEach(tag => formData.append('tagNames', tag));
     imgs.forEach((img, i) => {
       formData.append('images', {
@@ -59,24 +56,23 @@ const PostCreationScreen: React.FC = () => {
     });
 
     try {
-      const res = await fetch(`${BASE_URL}/api/posts`, {
-        method: 'POST',
-        // ❌ 不手动加 Content-Type，RN 会自动携带正确 boundary
-        body: formData,
-      });
+      // 使用 apiClient.upload 方法处理 FormData
+      const response = await apiClient.upload('/api/posts', formData);
 
-      if (res.ok) {
-        console.log(formData);
-        Alert.alert('发布成功');
-        nav.goBack();
+      if (response.error) {
+        console.error('[❌ 发布失败]', response.error);
+        Alert.alert('发布失败', response.error);
       } else {
-        const result = await res.json();
-        console.error('[❌ 发布失败]', result);
-        Alert.alert('发布失败', result.message || '请稍后重试');
+        console.log('[✅ 发布成功]', response.data);
+        Alert.alert('成功', '帖子发布成功', [
+          { text: '确定', onPress: () => nav.goBack() }
+        ]);
       }
     } catch (error) {
       console.error('[❌ 网络错误]', error);
-      Alert.alert('网络错误', '无法连接服务器');
+      Alert.alert('网络错误', '无法连接服务器，请检查网络连接');
+    } finally {
+      setIsPosting(false);
     }
   };
 
@@ -84,7 +80,7 @@ const PostCreationScreen: React.FC = () => {
     <SafeAreaView style={styles.safe}>
       <StatusBar barStyle="dark-content" />
       <View style={styles.top}>
-        <TouchableOpacity onPress={() => nav.goBack()}>
+        <TouchableOpacity onPress={() => nav.goBack()} disabled={isPosting}>
           <Ionicons name="chevron-back" size={28} />
         </TouchableOpacity>
         <View style={{ flex: 1 }} />
@@ -101,13 +97,18 @@ const PostCreationScreen: React.FC = () => {
               <TouchableOpacity
                 style={styles.delBtn}
                 onPress={() => setImgs(imgs.filter((_, idx) => idx !== i))}
+                disabled={isPosting}
               >
                 <Ionicons name="close-circle" size={20} color="#fff" />
               </TouchableOpacity>
             </View>
           ))}
           {imgs.length < 9 && (
-            <TouchableOpacity style={styles.addThumb} onPress={addImg}>
+            <TouchableOpacity 
+              style={[styles.addThumb, isPosting && styles.disabled]} 
+              onPress={addImg}
+              disabled={isPosting}
+            >
               <Ionicons name="add" size={36} color="#aaa" />
               <Text style={styles.addTxt}>{`${imgs.length}/9`}</Text>
             </TouchableOpacity>
@@ -120,6 +121,7 @@ const PostCreationScreen: React.FC = () => {
             style={styles.titleInput}
             value={title}
             onChangeText={setTitle}
+            editable={!isPosting}
           />
           <TextInput
             placeholder="添加正文"
@@ -128,6 +130,7 @@ const PostCreationScreen: React.FC = () => {
             onChangeText={setContent}
             multiline
             textAlignVertical="top"
+            editable={!isPosting}
           />
         </View>
 
@@ -137,8 +140,13 @@ const PostCreationScreen: React.FC = () => {
             {mockTags.map(t => (
               <TouchableOpacity
                 key={t}
-                style={[styles.chip, selTags.includes(t) && styles.chipActive]}
+                style={[
+                  styles.chip, 
+                  selTags.includes(t) && styles.chipActive,
+                  isPosting && styles.disabled
+                ]}
                 onPress={() => toggleTag(t)}
+                disabled={isPosting}
               >
                 <Text style={[styles.chipTxt, selTags.includes(t) && styles.chipTxtActive]}>
                   #{t}
@@ -152,8 +160,12 @@ const PostCreationScreen: React.FC = () => {
       </ScrollView>
 
       <View style={styles.bottom}>
-        <TouchableOpacity style={styles.pubBtn} onPress={handlePost}>
-          <Text style={styles.pubTxt}>发帖</Text>
+        <TouchableOpacity 
+          style={[styles.pubBtn, isPosting && styles.pubBtnDisabled]} 
+          onPress={handlePost}
+          disabled={isPosting}
+        >
+          <Text style={styles.pubTxt}>{isPosting ? '发布中...' : '发帖'}</Text>
         </TouchableOpacity>
       </View>
     </SafeAreaView>
@@ -196,7 +208,9 @@ const styles = StyleSheet.create({
     borderColor: '#eee', backgroundColor: '#fff',
     justifyContent: 'center', alignItems: 'center',
     paddingBottom: Platform.OS === 'ios' ? 16 : 0,
-  },
+  }, 
   pubBtn: { backgroundColor: '#f33', borderRadius: 24, paddingHorizontal: 26, paddingVertical: 10 },
+  pubBtnDisabled: { backgroundColor: '#ffb3b3' },
   pubTxt: { color: '#fff', fontSize: 16, fontWeight: '600' },
-});
+  disabled: { opacity: 0.6 }, 
+});  

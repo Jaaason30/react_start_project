@@ -1,13 +1,25 @@
+// src/theme/PlayerProfileScreen.styles.ts
+
 import { StyleSheet, Dimensions } from 'react-native';
 
 const { width } = Dimensions.get('window');
 const PHOTO_SIZE = (width - 32 - 12) / 3;
 
 export const styles = StyleSheet.create({
+  // 整体容器
   container: {
     flex: 1,
     backgroundColor: '#fff',
   },
+
+  // 顶部返回按钮（用于错误页面的“返回”）
+  backButton: {
+    padding: 10,
+    backgroundColor: '#eee',
+    borderRadius: 4,
+  },
+
+  // 顶部栏
   topBar: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -23,22 +35,32 @@ export const styles = StyleSheet.create({
     fontWeight: 'bold',
     color: '#222',
   },
-  scrollContainer: {
-    flex: 0,
-  },
-  postGridContainer: {
+
+  // 加载态
+  loadingContainer: {
     flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
     backgroundColor: '#fff',
   },
+
+  // “暂无帖子” 空白态
+  emptyContainer: {
+    flex: 1,
+    alignItems: 'center',
+    paddingTop: 50,
+  },
+  emptyText: {
+    color: '#888',
+    fontSize: 14,
+  },
+
+  // “身份” 区块：头像 + 昵称 + ID
   identitySection: {
     flexDirection: 'row',
     alignItems: 'center',
     padding: 16,
     backgroundColor: '#fff',
-  },
-  identityText: {
-    marginLeft: 16,
-    justifyContent: 'center',
   },
   avatar: {
     width: 80,
@@ -47,6 +69,10 @@ export const styles = StyleSheet.create({
     borderWidth: 2,
     borderColor: '#fff',
     backgroundColor: '#eee',
+  },
+  identityText: {
+    marginLeft: 16,
+    justifyContent: 'center',
   },
   username: {
     fontSize: 18,
@@ -58,6 +84,8 @@ export const styles = StyleSheet.create({
     fontSize: 12,
     marginTop: 4,
   },
+
+  // 粉丝 / 关注 统计
   statsRow: {
     flexDirection: 'row',
     justifyContent: 'space-around',
@@ -77,50 +105,28 @@ export const styles = StyleSheet.create({
     fontSize: 12,
     marginTop: 2,
   },
+
+  // 相册横向滚动
   albumScroll: {
     paddingHorizontal: 16,
     marginVertical: 12,
     backgroundColor: '#fff',
-  },
-  albumItem: {
-    marginRight: 12,
   },
   albumImage: {
     width: PHOTO_SIZE,
     height: PHOTO_SIZE,
     borderRadius: 8,
     backgroundColor: '#ddd',
+    marginRight: 12,
   },
-  sectionHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
+
+  // 帖子列表容器
+  postListContainer: {
+    paddingBottom: 72,
     backgroundColor: '#fff',
   },
-  sectionTitle: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    color: '#222',
-  },
-  seeAllButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  seeAllText: {
-    fontSize: 14,
-    color: '#888',
-  },
-  bioContainer: {
-    paddingHorizontal: 16,
-    marginBottom: 12,
-  },
-  bio: {
-    color: '#333',
-    fontSize: 13,
-    lineHeight: 18,
-  },
+
+  // 帖子卡片
   card: {
     margin: 16,
     backgroundColor: '#f9f9f9',
@@ -158,18 +164,8 @@ export const styles = StyleSheet.create({
     fontSize: 12,
     color: '#888',
   },
-  debugUrl: {
-    fontSize: 10,
-    color: '#aaa',
-    paddingHorizontal: 12,
-    marginBottom: 8,
-  },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: '#fff',
-  },
+
+  // 底部导航
   bottomNav: {
     flexDirection: 'row',
     justifyContent: 'space-around',
@@ -188,9 +184,5 @@ export const styles = StyleSheet.create({
   },
   navLabelActive: {
     color: '#d81e06',
-  },
-  postListContainer: {
-    paddingBottom: 72,
-    backgroundColor: '#fff',
   },
 });
