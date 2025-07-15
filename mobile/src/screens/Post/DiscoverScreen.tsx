@@ -1,6 +1,6 @@
 // src/screens/DiscoverScreen.tsx
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   View,
   Text,
@@ -9,12 +9,13 @@ import {
   FlatList,
   ActivityIndicator,
   Platform,
+  StyleSheet,
+  RefreshControl,
 } from 'react-native';
 import Ionicons from 'react-native-vector-icons/Ionicons';
-import FastImage, { OnLoadEvent } from 'react-native-fast-image';
+import FastImage from 'react-native-fast-image';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import LinearGradient from 'react-native-linear-gradient';
 import { styles } from '../../theme/DiscoverScreen.styles';
 import { apiClient } from '../../services/apiClient';
 import { API_ENDPOINTS } from '../../constants/api';
@@ -22,7 +23,6 @@ import { DiscoverBanner } from './components/DiscoverBanner';
 
 const HOST = Platform.OS === 'android' ? '10.0.2.2' : 'localhost';
 const BASE_URL = `http://${HOST}:8080`;
-console.log('[DiscoverScreen] BASE_URL =', BASE_URL);
 
 export type RootStackParamList = {
   Login: undefined;
@@ -34,15 +34,17 @@ export type RootStackParamList = {
   Search: undefined;
   PlayerProfile: { userId?: string };
   PostCreation: undefined;
-  CertifiedPromotions: undefined;
   PostDetail: { post: any };
 };
 
 type DiscoverNav = NativeStackNavigationProp<RootStackParamList, 'Discover'>;
-const TOP_TABS = ['关注', '推荐', '营销'] as const;
+
+const TOP_TABS = ['关注', '推荐'] as const;
+
 const BOTTOM_TABS = [
-  { key: 'match', label: '匹配', icon: 'heart-outline', screen: 'Dashboard' },
+  { key: 'heart', label: '心动', icon: 'heart-outline', screen: 'Dashboard' },
   { key: 'chat', label: '聊天', icon: 'chatbubbles-outline', screen: 'SeatOverview' },
+  { key: 'post', label: '', icon: '', screen: 'PostCreation' },
   { key: 'square', label: '广场', icon: 'apps-outline', screen: 'Discover' },
   { key: 'me', label: '我的', icon: 'person-outline', screen: 'PlayerProfile' },
 ] as const;
@@ -54,25 +56,27 @@ export default function DiscoverScreen() {
   const [posts, setPosts] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const listRef = useRef<FlatList<any>>(null);
 
   const fetchPosts = useCallback(async () => {
-    setLoading(true);
-    const feedUrl = `${API_ENDPOINTS.POSTS_FEED}?page=0&size=20`;
-    console.log('[fetchPosts] GET', feedUrl);
-    try {
-      const { data, error } = await apiClient.get<{ content: any[] }>(feedUrl);
-      if (error) throw new Error(error);
-      setPosts(data?.content ?? []);
-    } catch (err) {
-      console.error('[fetchPosts] error:', err);
-    } finally {
-      setLoading(false);
+    const res = await apiClient.get<{ content: any[] }>(`${API_ENDPOINTS.POSTS_FEED}?page=0&size=20`);
+    if (res.error) {
+      console.error('[fetchPosts] error:', res.error);
+      return;
     }
+    // safely handle possible null data
+    setPosts(res.data?.content ?? []);
   }, []);
 
-  useEffect(() => {
-    fetchPosts();
+  const loadInitial = useCallback(async () => {
+    setLoading(true);
+    await fetchPosts();
+    setLoading(false);
   }, [fetchPosts]);
+
+  useEffect(() => {
+    loadInitial();
+  }, [loadInitial]);
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
@@ -81,25 +85,33 @@ export default function DiscoverScreen() {
   }, [fetchPosts]);
 
   const getCoverUrl = (item: any): string => {
-    let url = '';
     if (item.coverUrl) {
-      url = item.coverUrl.startsWith('http') ? item.coverUrl : `${BASE_URL}${item.coverUrl}`;
-    } else if (item.coverImageUrl) {
-      url = item.coverImageUrl.startsWith('http') ? item.coverImageUrl : `${BASE_URL}${item.coverImageUrl}`;
-    } else if (Array.isArray(item.images) && item.images.length > 0) {
-      const first = item.images[0];
-      if (first.url) url = first.url.startsWith('http') ? first.url : `${BASE_URL}${first.url}`;
-      else if (first.path) url = `${BASE_URL}${first.path}`;
-      else if (first.uuid) url = `${BASE_URL}/api/media/photo/${first.uuid}`;
+      return item.coverUrl.startsWith('http') ? item.coverUrl : `${BASE_URL}${item.coverUrl}`;
     }
-    return url || 'https://via.placeholder.com/400x600';
+    if (item.coverImageUrl) {
+      return item.coverImageUrl.startsWith('http')
+        ? item.coverImageUrl
+        : `${BASE_URL}${item.coverImageUrl}`;
+    }
+    if (Array.isArray(item.images) && item.images.length) {
+      const first = item.images[0];
+      if (first.url) return first.url.startsWith('http') ? first.url : `${BASE_URL}${first.url}`;
+      if (first.path) return `${BASE_URL}${first.path}`;
+      if (first.uuid) return `${BASE_URL}/api/media/photo/${first.uuid}`;
+    }
+    return 'https://via.placeholder.com/400x600';
   };
 
   const PostCard: React.FC<{ item: any }> = ({ item }) => {
     const [uri, setUri] = useState(getCoverUrl(item));
-    useEffect(() => {
-      setUri(getCoverUrl(item));
-    }, [item]);
+    useEffect(() => setUri(getCoverUrl(item)), [item]);
+
+    const author = item.author;
+    const avatarUri = author?.profilePictureUrl
+      ? author.profilePictureUrl.startsWith('http')
+        ? author.profilePictureUrl
+        : `${BASE_URL}${author.profilePictureUrl}`
+      : 'https://via.placeholder.com/16';
 
     return (
       <TouchableOpacity
@@ -112,13 +124,15 @@ export default function DiscoverScreen() {
           style={styles.cardImage}
           resizeMode={FastImage.resizeMode.cover}
           onError={() => setUri('https://via.placeholder.com/400x600')}
-          //onLoad={e => console.log('[FastImage onLoad]', item.uuid, uri, e.nativeEvent)}
         />
         <Text style={styles.cardTitle} numberOfLines={2}>
           {item.title ?? '（无标题）'}
         </Text>
         <View style={styles.cardFooter}>
-          <Text style={styles.author}>{item.author?.nickname ?? '匿名'}</Text>
+          <View style={styles.authorContainer}>
+            <FastImage source={{ uri: avatarUri }} style={styles.authorAvatar} />
+            <Text style={styles.author}>{author?.nickname ?? '匿名'}</Text>
+          </View>
           <View style={styles.likesRow}>
             <Ionicons name="heart-outline" size={14} color="#888" />
             <Text style={styles.likesText}>{item.likeCount ?? 0}</Text>
@@ -131,29 +145,38 @@ export default function DiscoverScreen() {
   return (
     <View style={styles.container}>
       <StatusBar barStyle="dark-content" />
+
+      {/* 顶部导航 */}
       <View style={styles.topBar}>
+        <TouchableOpacity onPress={() => {}} style={{ marginRight: 16 }}>
+          <Ionicons name="menu-outline" size={24} color="#444" />
+        </TouchableOpacity>
         <View style={styles.topTabs}>
           {TOP_TABS.map(tab => (
-            <TouchableOpacity key={tab} onPress={() => setActiveTopTab(tab)} style={styles.tabTouch}>
-              <Text style={[styles.tabText, activeTopTab === tab && styles.tabActive]}>{tab}</Text>
+            <TouchableOpacity
+              key={tab}
+              onPress={() => setActiveTopTab(tab)}
+              style={styles.tabTouch}
+            >
+              <Text style={[styles.tabText, activeTopTab === tab && styles.tabActive]}>
+                {tab}
+              </Text>
             </TouchableOpacity>
           ))}
         </View>
         <View style={styles.topIcons}>
-          <TouchableOpacity style={styles.verifyWrapper} activeOpacity={0.8} onPress={() => navigation.navigate('CertifiedPromotions')}>
-            <LinearGradient colors={['#FF2E92', '#AF54F5']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={styles.verifyTag}>
-              <Text style={styles.verifyText}>认证营销 👑</Text>
-            </LinearGradient>
+          <TouchableOpacity onPress={() => navigation.navigate('Search')} style={styles.iconBtn}>
+            <Ionicons name="search-outline" size={24} color="#444" />
           </TouchableOpacity>
-          <Ionicons name="search-outline" size={24} style={styles.iconBtn} onPress={() => navigation.navigate('Search')} />
-          <Ionicons name="add-outline" size={28} style={styles.iconBtn} onPress={() => navigation.navigate('PostCreation')} />
         </View>
       </View>
 
-      {loading && !refreshing ? (
+      {/* 内容区 */}
+      {loading ? (
         <ActivityIndicator size="large" color="#d81e06" style={{ marginTop: 50 }} />
       ) : (
         <FlatList
+          ref={listRef}
           data={posts}
           keyExtractor={item => item.uuid}
           renderItem={({ item }) => <PostCard item={item} />}
@@ -163,27 +186,55 @@ export default function DiscoverScreen() {
           maxToRenderPerBatch={6}
           windowSize={9}
           contentContainerStyle={styles.listContent}
-          refreshing={refreshing}
-          onRefresh={onRefresh}
+          refreshControl={
+            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#d81e06" />
+          }
           ListHeaderComponent={<DiscoverBanner />}
         />
       )}
 
+      {/* 底部导航栏 */}
       <View style={styles.bottomBar}>
-        {BOTTOM_TABS.map(t => (
-          <TouchableOpacity
-            key={t.key}
-            onPress={() => {
-              if (t.screen !== 'Discover') navigation.navigate(t.screen as any);
-              setActiveBottom(t.key);
-            }}
-            style={styles.bottomItem}
-          >
-            <Ionicons name={t.icon} size={24} color={activeBottom === t.key ? '#d81e06' : '#222'} />
-            <Text style={[styles.bottomLabel, activeBottom === t.key && styles.bottomLabelActive]}>{t.label}</Text>
-          </TouchableOpacity>
-        ))}
+        {BOTTOM_TABS.map(tab => {
+          if (tab.key === 'post') {
+            return (
+              <TouchableOpacity
+                key="post"
+                style={styles.postTabRect}
+                activeOpacity={0.8}
+                onPress={() => navigation.navigate('PostCreation')}
+              >
+                <Text style={styles.plus}>+</Text>
+              </TouchableOpacity>
+            );
+          }
+          const isActive = activeBottom === tab.key;
+          return (
+            <TouchableOpacity
+              key={tab.key}
+              style={styles.bottomItem}
+              activeOpacity={0.6}
+              onPress={() => {
+                if (tab.key === 'square') {
+                  setActiveBottom(tab.key);
+                  // 自动滚到顶部并下拉刷新
+                  listRef.current?.scrollToOffset({ offset: 0, animated: true });
+                  onRefresh();
+                } else {
+                  navigation.navigate(tab.screen as any);
+                  setActiveBottom(tab.key);
+                }
+              }}
+            >
+              <Ionicons name={tab.icon} size={24} color={isActive ? '#d81e06' : '#888'} />
+              <Text style={[styles.bottomLabel, isActive && styles.bottomLabelActive]}>
+                {tab.label}
+              </Text>
+            </TouchableOpacity>
+          );
+        })}
       </View>
     </View>
   );
 }
+

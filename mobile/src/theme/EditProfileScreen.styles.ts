@@ -161,4 +161,55 @@ export const styles = StyleSheet.create({
     fontSize: 14,
     color: '#333',
   },
+  // 相册相关样式
+albumScrollView: {
+  marginVertical: 10,
+},
+albumItemWrapper: {
+  position: 'relative',
+  marginRight: 10,
+},
+
+albumRemoveButton: {
+  position: 'absolute',
+  top: -10,
+  right: -10,
+  backgroundColor: 'rgba(255, 0, 0, 0.8)',
+  borderRadius: 11,
+  width: 22,
+  height: 22,
+  justifyContent: 'center',
+  alignItems: 'center',
+},
+newBadge: {
+  position: 'absolute',
+  bottom: 4,
+  right: 4,
+  backgroundColor: '#4CAF50',
+  borderRadius: 4,
+  paddingHorizontal: 6,
+  paddingVertical: 2,
+},
+newBadgeText: {
+  color: '#fff',
+  fontSize: 10,
+  fontWeight: 'bold',
+},
+addAlbumButton: {
+  width: 100,
+  height: 100,
+  borderRadius: 8,
+  borderWidth: 2,
+  borderColor: '#ddd',
+  borderStyle: 'dashed',
+  justifyContent: 'center',
+  alignItems: 'center',
+  backgroundColor: '#f9f9f9',
+},
+addAlbumText: {
+  fontSize: 12,
+  color: '#666',
+  marginTop: 4,
+},
+
 });

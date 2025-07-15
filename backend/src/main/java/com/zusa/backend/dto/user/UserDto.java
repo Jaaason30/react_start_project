@@ -46,4 +46,5 @@ public class UserDto {
     private long followingCount;
     private List<UserSummaryDto> followers;
     private List<UserSummaryDto> following;
+    private List<String> keepAlbumUrls;
 }

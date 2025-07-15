@@ -29,6 +29,13 @@ type RootStackParamList = {
 
 type NavType = NativeStackNavigationProp<RootStackParamList, 'EditProfile'>;
 
+// 定义相册项类型
+type AlbumItem = {
+  uri: string;
+  isNew: boolean;
+  originalUrl?: string; // 保存原始的相对URL，用于告诉后端要保留哪些
+};
+
 export default function EditProfileScreen() {
   const navigation = useNavigation<NavType>();
   const {
@@ -39,6 +46,48 @@ export default function EditProfileScreen() {
     bumpAvatarVersion,
   } = useUserProfile();
 
+  // 相册状态
+  const [albumItems, setAlbumItems] = useState<AlbumItem[]>([]);
+  const [deletedOriginalUrls, setDeletedOriginalUrls] = useState<string[]>([]);
+  
+  // 其他状态
+  const [nickname, setNickname] = useState<string>('');
+  const [bio, setBio] = useState<string>('');
+  const [dateOfBirth, setDateOfBirth] = useState<string>('');
+  const [city, setCity] = useState<string>('');
+  const [gender, setGender] = useState<string>('');
+  const [genderPreferences, setGenderPreferences] = useState<string[]>([]);
+  const [localProfileUri, setLocalProfileUri] = useState<string | null>(null);
+  const [interests, setInterests] = useState<string[]>([]);
+  const [preferredVenues, setPreferredVenues] = useState<string[]>([]);
+  const [avatarChanged, setAvatarChanged] = useState<boolean>(false);
+  const [albumChanged, setAlbumChanged] = useState<boolean>(false);
+  const [isSaving, setIsSaving] = useState<boolean>(false);
+
+  // 初始化数据
+  useEffect(() => {
+    if (profileData) {
+      setNickname(profileData.nickname || '');
+      setBio(profileData.bio || '');
+      setDateOfBirth(profileData.dateOfBirth || '');
+      setCity(profileData.city?.name || '');
+      setGender(profileData.gender?.text || '');
+      setGenderPreferences(profileData.genderPreferences?.map((g) => g.text) || []);
+      setInterests(profileData.interests || []);
+      setPreferredVenues(profileData.preferredVenues || []);
+      
+      // 初始化相册项
+      const initialAlbumItems: AlbumItem[] = (profileData.albumUrls || []).map(url => ({
+        uri: url.startsWith('http') ? url : FULL_BASE_URL + url,
+        isNew: false,
+        originalUrl: url // 保存原始URL
+      }));
+      setAlbumItems(initialAlbumItems);
+      setDeletedOriginalUrls([]);
+      setAlbumChanged(false);
+    }
+  }, [profileData]);
+
   if (isLoading || !profileData) {
     return (
       <View style={styles.loadingContainer}>
@@ -46,29 +95,6 @@ export default function EditProfileScreen() {
       </View>
     );
   }
-
-  const [nickname, setNickname] = useState<string>(profileData.nickname || '');
-  const [bio, setBio] = useState<string>(profileData.bio || '');
-  const [dateOfBirth, setDateOfBirth] = useState<string>(profileData.dateOfBirth || '');
-  const [city, setCity] = useState<string>(profileData.city?.name || '');
-  const [gender, setGender] = useState<string>(profileData.gender?.text || '');
-  const [genderPreferences, setGenderPreferences] = useState<string[]>(
-    profileData.genderPreferences?.map((g) => g.text) || []
-  );
-  const [localProfileUri, setLocalProfileUri] = useState<string | null>(null);
-  const [albumUris, setAlbumUris] = useState<string[]>(
-    (profileData.albumUrls || []).map((u) =>
-      u.startsWith('http') ? u : FULL_BASE_URL + u
-    )
-  );
-  const [interests, setInterests] = useState<string[]>(profileData.interests || []);
-  const [preferredVenues, setPreferredVenues] = useState<string[]>(
-    profileData.preferredVenues || []
-  );
-
-  const [avatarChanged, setAvatarChanged] = useState<boolean>(false);
-  const [albumChanged, setAlbumChanged] = useState<boolean>(false);
-  const [isSaving, setIsSaving] = useState<boolean>(false);
 
   const selectProfileImage = () => {
     ImagePicker.launchImageLibrary({ mediaType: 'photo' }, (resp) => {
@@ -81,16 +107,40 @@ export default function EditProfileScreen() {
   };
 
   const selectAlbumImages = () => {
+    const remainingSlots = 5 - albumItems.length;
+    if (remainingSlots <= 0) {
+      Alert.alert('提示', '相册最多只能上传5张图片');
+      return;
+    }
+
     ImagePicker.launchImageLibrary(
-      { mediaType: 'photo', selectionLimit: 5 },
+      { mediaType: 'photo', selectionLimit: remainingSlots },
       (resp) => {
-        const uris = resp.assets?.map((a) => a.uri!).filter(Boolean) || [];
-        if (uris.length) {
-          setAlbumUris(uris);
+        const newItems = resp.assets?.map((asset) => ({
+          uri: asset.uri!,
+          isNew: true
+        })).filter((item): item is AlbumItem => Boolean(item.uri)) || [];
+        
+        if (newItems.length) {
+          setAlbumItems([...albumItems, ...newItems]);
           setAlbumChanged(true);
         }
       }
     );
+  };
+
+  const removeAlbumItem = (index: number) => {
+    const itemToRemove = albumItems[index];
+    
+    // 如果删除的是原有图片，记录其URL
+    if (!itemToRemove.isNew && itemToRemove.originalUrl) {
+      setDeletedOriginalUrls([...deletedOriginalUrls, itemToRemove.originalUrl]);
+    }
+    
+    const newItems = [...albumItems];
+    newItems.splice(index, 1);
+    setAlbumItems(newItems);
+    setAlbumChanged(true);
   };
 
   const getVersionedUri = (base: string) => `${base}?v=${avatarVersion}`;
@@ -105,31 +155,26 @@ export default function EditProfileScreen() {
     try {
       const payload: any = {};
 
-      if (nickname !== profileData.nickname) payload.nickname = nickname;
-      if (bio !== profileData.bio) payload.bio = bio;
-      if (dateOfBirth !== profileData.dateOfBirth)
-        payload.dateOfBirth = dateOfBirth;
-      if (city !== profileData.city?.name) payload.city = { name: city };
-      if (gender !== profileData.gender?.text)
-        payload.gender = { text: gender };
+      // 基本信息更新（只发送有变化的字段）
+      if (nickname !== (profileData.nickname || '')) payload.nickname = nickname;
+      if (bio !== (profileData.bio || '')) payload.bio = bio;
+      if (dateOfBirth !== (profileData.dateOfBirth || '')) payload.dateOfBirth = dateOfBirth;
+      if (city !== (profileData.city?.name || '')) payload.city = { name: city };
+      if (gender !== (profileData.gender?.text || '')) payload.gender = { text: gender };
 
       const origPrefs = profileData.genderPreferences?.map((g) => g.text) || [];
       if (JSON.stringify(genderPreferences) !== JSON.stringify(origPrefs)) {
         payload.genderPreferences = genderPreferences.map((t) => ({ text: t }));
       }
-      if (JSON.stringify(interests) !== JSON.stringify(profileData.interests))
+      if (JSON.stringify(interests) !== JSON.stringify(profileData.interests || [])) {
         payload.interests = interests;
-      if (
-        JSON.stringify(preferredVenues) !==
-        JSON.stringify(profileData.preferredVenues)
-      )
+      }
+      if (JSON.stringify(preferredVenues) !== JSON.stringify(profileData.preferredVenues || [])) {
         payload.preferredVenues = preferredVenues;
+      }
 
-      if (
-        avatarChanged &&
-        localProfileUri &&
-        !localProfileUri.startsWith('http')
-      ) {
+      // 头像上传
+      if (avatarChanged && localProfileUri && !localProfileUri.startsWith('http')) {
         const blob = await (await fetch(localProfileUri)).blob();
         payload.profileMime = blob.type;
         payload.profileBase64 = await new Promise<string>((resolve) => {
@@ -140,12 +185,23 @@ export default function EditProfileScreen() {
         });
       }
 
+      // 相册处理 - 新逻辑
       if (albumChanged) {
-        payload.albumMimeList = [];
-        payload.albumBase64List = [];
-        for (const uri of albumUris) {
-          if (!uri.startsWith('http')) {
-            const blob = await (await fetch(uri)).blob();
+        // 1. 收集要保留的旧图片URL
+        const keepUrls = albumItems
+          .filter(item => !item.isNew && item.originalUrl)
+          .map(item => item.originalUrl!);
+        
+        payload.keepAlbumUrls = keepUrls;
+        
+        // 2. 只上传新图片
+        const newImages = albumItems.filter(item => item.isNew);
+        if (newImages.length > 0) {
+          payload.albumMimeList = [];
+          payload.albumBase64List = [];
+          
+          for (const item of newImages) {
+            const blob = await (await fetch(item.uri)).blob();
             payload.albumMimeList.push(blob.type);
             const b64 = await new Promise<string>((resolve) => {
               const reader = new FileReader();
@@ -156,18 +212,30 @@ export default function EditProfileScreen() {
             payload.albumBase64List.push(b64);
           }
         }
+        
+        console.log('[相册更新]', {
+          保留旧图片数: keepUrls.length,
+          新上传图片数: newImages.length,
+          保留的URLs: keepUrls
+        });
       }
 
-      const endpoint = `${API_ENDPOINTS.USER_UPDATE}?userUuid=${profileData.uuid}`;
-      const response = await apiClient.patch(endpoint, payload);
-      if (response.error) throw new Error(response.error);
+      // 只有有修改时才发送请求
+      if (Object.keys(payload).length > 0) {
+        const endpoint = `${API_ENDPOINTS.USER_UPDATE}?userUuid=${profileData.uuid}`;
+        const response = await apiClient.patch(endpoint, payload);
+        if (response.error) throw new Error(response.error);
 
-      await refreshProfile();
-      bumpAvatarVersion();
+        await refreshProfile();
+        bumpAvatarVersion();
 
-      Alert.alert('成功', '资料已更新', [
-        { text: '确定', onPress: () => navigation.goBack() },
-      ]);
+        Alert.alert('成功', '资料已更新', [
+          { text: '确定', onPress: () => navigation.goBack() },
+        ]);
+      } else {
+        Alert.alert('提示', '没有需要保存的修改');
+        navigation.goBack();
+      }
     } catch (err: any) {
       console.error('[SaveProfile]', err);
       Alert.alert('错误', err.message || '保存失败');
@@ -200,7 +268,7 @@ export default function EditProfileScreen() {
         style={styles.input}
         placeholder="输入昵称"
         value={nickname}
-        onChangeText={(txt: string) => setNickname(txt)}
+        onChangeText={setNickname}
         editable={!isSaving}
       />
 
@@ -209,7 +277,7 @@ export default function EditProfileScreen() {
         style={styles.input}
         placeholder="输入个性签名"
         value={bio}
-        onChangeText={(txt: string) => setBio(txt)}
+        onChangeText={setBio}
         editable={!isSaving}
       />
 
@@ -218,7 +286,7 @@ export default function EditProfileScreen() {
         style={styles.input}
         placeholder="YYYY-MM-DD"
         value={dateOfBirth}
-        onChangeText={(txt: string) => setDateOfBirth(txt)}
+        onChangeText={setDateOfBirth}
         editable={!isSaving}
       />
 
@@ -227,7 +295,7 @@ export default function EditProfileScreen() {
         style={styles.input}
         placeholder="输入城市名称"
         value={city}
-        onChangeText={(txt: string) => setCity(txt)}
+        onChangeText={setCity}
         editable={!isSaving}
       />
 
@@ -236,7 +304,7 @@ export default function EditProfileScreen() {
         style={styles.input}
         placeholder="输入性别"
         value={gender}
-        onChangeText={(txt: string) => setGender(txt)}
+        onChangeText={setGender}
         editable={!isSaving}
       />
 
@@ -245,8 +313,8 @@ export default function EditProfileScreen() {
         style={styles.input}
         placeholder="如 男,女"
         value={genderPreferences.join(',')}
-        onChangeText={(txt: string) =>
-          setGenderPreferences(txt.split(',').map((s: string) => s.trim()))
+        onChangeText={(txt) =>
+          setGenderPreferences(txt.split(',').map((s) => s.trim()).filter(Boolean))
         }
         editable={!isSaving}
       />
@@ -256,8 +324,8 @@ export default function EditProfileScreen() {
         style={styles.input}
         placeholder="如 旅行,音乐"
         value={interests.join(',')}
-        onChangeText={(txt: string) =>
-          setInterests(txt.split(',').map((s: string) => s.trim()))
+        onChangeText={(txt) =>
+          setInterests(txt.split(',').map((s) => s.trim()).filter(Boolean))
         }
         editable={!isSaving}
       />
@@ -267,8 +335,8 @@ export default function EditProfileScreen() {
         style={styles.input}
         placeholder="如 咖啡厅,餐厅"
         value={preferredVenues.join(',')}
-        onChangeText={(txt: string) =>
-          setPreferredVenues(txt.split(',').map((s: string) => s.trim()))
+        onChangeText={(txt) =>
+          setPreferredVenues(txt.split(',').map((s) => s.trim()).filter(Boolean))
         }
         editable={!isSaving}
       />
@@ -287,40 +355,49 @@ export default function EditProfileScreen() {
         onPress={selectProfileImage}
         disabled={isSaving}
       >
-        <Text style={styles.buttonText}>上传头像</Text>
+        <Text style={styles.buttonText}>更换头像</Text>
       </TouchableOpacity>
 
-      <Text style={styles.label}>相册</Text>
-      <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-        {albumUris.map((uri, idx) => {
-          const src = uri.startsWith('http') ? getVersionedUri(uri) : uri;
+      <Text style={styles.label}>相册 ({albumItems.length}/5)</Text>
+      <ScrollView 
+        horizontal 
+        showsHorizontalScrollIndicator={false}
+        style={styles.albumScrollView}
+      >
+        {albumItems.map((item, idx) => {
+          const displayUri = item.isNew ? item.uri : getVersionedUri(item.uri);
           return (
-            <View key={`${src}-${idx}`} style={styles.albumWrapper}>
+            <View key={`album-${idx}-${item.uri}`} style={styles.albumItemWrapper}>
               <FastImage
-                source={{ uri: src }}
+                source={{ uri: displayUri }}
                 style={styles.albumPreview}
                 resizeMode={FastImage.resizeMode.cover}
               />
               <TouchableOpacity
-                style={styles.removeButton}
-                onPress={() => {
-                  const newArr = [...albumUris];
-                  newArr.splice(idx, 1);
-                  setAlbumUris(newArr);
-                }}
+                style={styles.albumRemoveButton}
+                onPress={() => removeAlbumItem(idx)}
+                disabled={isSaving}
               >
-                <Text style={styles.removeButtonText}>×</Text>
+                <Ionicons name="close-circle" size={22} color="#fff" />
               </TouchableOpacity>
+              {item.isNew && (
+                <View style={styles.newBadge}>
+                  <Text style={styles.newBadgeText}>新</Text>
+                </View>
+              )}
             </View>
           );
         })}
-        <TouchableOpacity
-          style={styles.addBox}
-          onPress={selectAlbumImages}
-          disabled={isSaving}
-        >
-          <Text style={styles.addText}>＋</Text>
-        </TouchableOpacity>
+        {albumItems.length < 5 && (
+          <TouchableOpacity
+            style={[styles.addAlbumButton, isSaving && styles.buttonDisabled]}
+            onPress={selectAlbumImages}
+            disabled={isSaving}
+          >
+            <Ionicons name="add-circle-outline" size={40} color="#666" />
+            <Text style={styles.addAlbumText}>添加图片</Text>
+          </TouchableOpacity>
+        )}
       </ScrollView>
 
       <TouchableOpacity
@@ -332,6 +409,8 @@ export default function EditProfileScreen() {
           {isSaving ? '保存中...' : '保存修改'}
         </Text>
       </TouchableOpacity>
+
+      <View style={{ height: 50 }} />
     </ScrollView>
   );
 }

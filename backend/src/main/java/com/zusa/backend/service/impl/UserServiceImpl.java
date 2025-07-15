@@ -17,6 +17,7 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.ArrayList;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.List;
@@ -168,7 +169,57 @@ public class UserServiceImpl implements UserService {
         }
 
         // ========== 相册上传 ==========
-        if (req.getAlbumBase64List() != null && req.getAlbumMimeList() != null
+        if (req.getKeepAlbumUrls() != null) {
+            log.info("[AlbumUpload] 用户 UUID: {}", userUuid);
+            log.info("[AlbumUpload] 要保留的旧图片数量: {}", req.getKeepAlbumUrls().size());
+
+            // 先获取要保留的旧图片
+            List<UserPhoto> photosToKeep = new ArrayList<>();
+            for (String urlToKeep : req.getKeepAlbumUrls()) {
+                user.getAlbumPhotos().stream()
+                        .filter(photo -> {
+                            String photoUrl = "/api/media/photo/" + photo.getUuid();
+                            return urlToKeep.contains(photoUrl) || urlToKeep.contains(photo.getUuid().toString());
+                        })
+                        .findFirst()
+                        .ifPresent(photosToKeep::add);
+            }
+
+            // 清理不需要的旧图片
+            List<UserPhoto> photosToDelete = new ArrayList<>(user.getAlbumPhotos());
+            photosToDelete.removeAll(photosToKeep);
+
+            user.getAlbumPhotos().clear();
+            userPhotoRepository.deleteAll(photosToDelete);
+            log.info("[AlbumUpload] 删除了 {} 张旧图片", photosToDelete.size());
+
+            // 重新添加要保留的图片
+            user.getAlbumPhotos().addAll(photosToKeep);
+
+            // 处理新上传的图片
+            if (req.getAlbumBase64List() != null && req.getAlbumMimeList() != null
+                    && req.getAlbumBase64List().size() == req.getAlbumMimeList().size()) {
+
+                log.info("[AlbumUpload] 接收到 {} 张新图片上传", req.getAlbumBase64List().size());
+
+                var newPhotos = IntStream.range(0, req.getAlbumBase64List().size())
+                        .mapToObj(i -> UserPhoto.builder()
+                                .uuid(UUID.randomUUID())
+                                .data(req.getAlbumBase64List().get(i))
+                                .mime(req.getAlbumMimeList().get(i))
+                                .user(user)
+                                .build())
+                        .toList();
+
+                userPhotoRepository.saveAll(newPhotos);
+                user.getAlbumPhotos().addAll(newPhotos);
+
+                log.info("[AlbumUpload] 保存了 {} 张新图片", newPhotos.size());
+            }
+
+            log.info("[AlbumUpload] 最终相册共 {} 张图片", user.getAlbumPhotos().size());
+        }
+        else if (req.getAlbumBase64List() != null && req.getAlbumMimeList() != null
                 && req.getAlbumBase64List().size() == req.getAlbumMimeList().size()) {
 
             log.info("[AlbumUpload] 用户 UUID: {}", userUuid);
