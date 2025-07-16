@@ -27,8 +27,12 @@ export const useCommentActions = (
     setShowCommentModal(true);
   };
 
-  /** 删除评论 */
-  const handleDeleteComment = (id: string) => {
+  /**
+   * 删除评论 / 回复
+   * @param id        被删评论或回复的 uuid
+   * @param parentId  若传入则表示在删除回复，其父评论 id=parentId
+   */
+  const handleDeleteComment = (id: string, parentId?: string) => {
     Alert.alert('确认删除', '确定要删除这条评论吗？', [
       { text: '取消', style: 'cancel' },
       {
@@ -36,12 +40,35 @@ export const useCommentActions = (
         style: 'destructive',
         onPress: async () => {
           try {
-            await apiClient.delete(
-              API_ENDPOINTS.COMMENT_DELETE.replace(':id', id)
-            );
-            setComments(prev => prev.filter(c => c.id !== id));
+            await apiClient.delete(API_ENDPOINTS.COMMENT_DELETE.replace(':id', id));
+
+            // 更新本地 comments
+            if (parentId) {
+              // 删除回复
+              setComments(prev =>
+                prev.map(c => {
+                  if (c.id !== parentId) return c;
+                  const newReplies = (c.replies ?? []).filter(r => r.id !== id);
+                  return {
+                    ...c,
+                    replies: newReplies,
+                    replyCount: Math.max(0, c.replyCount - 1),
+                  };
+                })
+              );
+            } else {
+              // 删除顶级评论
+              setComments(prev => prev.filter(c => c.id !== id));
+            }
+
+            // 更新帖子总评论数
             setPost(prev =>
-              prev ? { ...prev, commentCount: prev.commentCount - 1 } : prev
+              prev
+                ? {
+                    ...prev,
+                    commentCount: Math.max(0, prev.commentCount - 1),
+                  }
+                : prev
             );
           } catch (err) {
             Alert.alert('删除失败', '请稍后重试');
@@ -92,6 +119,7 @@ export const useCommentActions = (
       };
 
       if (replyingTo) {
+        // 发布的是“回复”
         setComments(prev =>
           prev.map(c =>
             c.id === replyingTo.parentCommentUuid
@@ -103,8 +131,16 @@ export const useCommentActions = (
               : c
           )
         );
-        setShowReplies(prev => new Set(prev).add(replyingTo.parentCommentUuid!));
+        // 自动展开该父评论的回复
+        setShowReplies(prev => {
+          const newSet = new Set(prev);
+          if (replyingTo.parentCommentUuid) {
+            newSet.add(replyingTo.parentCommentUuid);
+          }
+          return newSet;
+        });
       } else {
+        // 发布的是“顶级评论”
         setComments(prev => [newComment, ...prev]);
       }
 
@@ -125,9 +161,7 @@ export const useCommentActions = (
       const { data: upd } = await apiClient.post<{
         likeCount: number;
         likedByCurrentUser: boolean;
-      }>(
-        API_ENDPOINTS.COMMENT_LIKES.replace(':id', commentId)
-      );
+      }>(API_ENDPOINTS.COMMENT_LIKES.replace(':id', commentId));
 
       if (!upd) return;
       setComments(prev =>
@@ -148,9 +182,7 @@ export const useCommentActions = (
       const { data: upd } = await apiClient.post<{
         likeCount: number;
         likedByCurrentUser: boolean;
-      }>(
-        API_ENDPOINTS.COMMENT_LIKES.replace(':id', replyId)
-      );
+      }>(API_ENDPOINTS.COMMENT_LIKES.replace(':id', replyId));
 
       if (!upd) return;
       setComments(prev =>
@@ -176,7 +208,7 @@ export const useCommentActions = (
     replyingTo,
     setReplyingTo,
     handleReply,
-    handleDeleteComment,
+    handleDeleteComment, // 注意现在可传 parentId
     submitComment,
     toggleCommentLike,
     toggleReplyLike,

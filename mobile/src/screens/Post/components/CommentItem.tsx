@@ -1,5 +1,3 @@
-// src/screens/Post/components/CommentItem.tsx
-
 import React from 'react';
 import { View, Text, TouchableOpacity } from 'react-native';
 import Ionicons from 'react-native-vector-icons/Ionicons';
@@ -20,8 +18,9 @@ export interface CommentItemProps {
   onDelete: () => void;
   onToggleReplies: () => void;
   onReplyLike: (replyId: string) => void;
+  /** 删除回复时需要父评论 id，方便更新本地 state */
+  onDeleteReply: (replyId: string, parentId: string) => void;
   onReplyToReply: (reply: CommentType) => void;
-  onDeleteReply: (replyId: string) => void;
 }
 
 export const CommentItem: React.FC<CommentItemProps> = ({
@@ -34,20 +33,20 @@ export const CommentItem: React.FC<CommentItemProps> = ({
   onDelete,
   onToggleReplies,
   onReplyLike,
-  onReplyToReply,
   onDeleteReply,
+  onReplyToReply,
 }) => {
-  // 调试输出
-  console.log('[CommentItem] comment →', comment);
-
   const { profileData } = useUserProfile();
   const ctxShortId = profileData?.shortId;
   const meShortId = currentUserShortId ?? ctxShortId;
 
-  // 如果 author 未定义，兜底一个空对象
-  const author = comment.author 
+  // author 兜底
+  const author = comment.author || {
+    shortId: 0,
+    nickname: '',
+    profilePictureUrl: undefined,
+  };
 
-  // 如果 replyToUser 未定义，兜底一个空对象
   const replyTo = comment.replyToUser || {
     shortId: 0,
     nickname: '',
@@ -101,9 +100,7 @@ export const CommentItem: React.FC<CommentItemProps> = ({
         </View>
 
         {comment.replyToUser && (
-          <Text style={styles.replyToText}>
-            回复 @{replyTo.nickname}
-          </Text>
+          <Text style={styles.replyToText}>回复 @{replyTo.nickname}</Text>
         )}
 
         <Text style={styles.commentContent}>{comment.content}</Text>
@@ -132,7 +129,7 @@ export const CommentItem: React.FC<CommentItemProps> = ({
               currentUserShortId={meShortId}
               onLike={() => onReplyLike(reply.id)}
               onReply={() => onReplyToReply(reply)}
-              onDelete={() => onDeleteReply(reply.id)}
+              onDelete={() => onDeleteReply(reply.id, comment.id)}
             />
           ))}
       </View>

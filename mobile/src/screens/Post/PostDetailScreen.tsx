@@ -1,5 +1,3 @@
-// src/screens/Post/PostDetailScreen.tsx
-
 import React, { useRef, useState } from 'react';
 import {
   View,
@@ -41,12 +39,11 @@ type RootStackParamList = {
 type PostDetailRouteProp = RouteProp<RootStackParamList, 'PostDetail'>;
 
 export default function PostDetailScreen() {
-  
   const navigation = useNavigation();
   const route = useRoute<PostDetailRouteProp>();
   const { post: initialPost } = route.params;
   const { refreshProfile } = useUserProfile();
-console.log('[PostDetailScreen] route params →', initialPost);
+  console.log('[PostDetailScreen] route params →', initialPost);
   const listRef = useRef<FlatList<CommentType>>(null);
   const [commentY, setCommentY] = useState(0);
   const [refreshing, setRefreshing] = useState(false);
@@ -64,7 +61,7 @@ console.log('[PostDetailScreen] route params →', initialPost);
     setIsFollowing,
     fetchPostDetail,
     deletePost,
-    currentUserShortId,    // ← 改名
+    currentUserShortId, // ← 改名
   } = usePostDetail(initialPost.uuid);
 
   const {
@@ -155,9 +152,7 @@ console.log('[PostDetailScreen] route params →', initialPost);
         ]}
       >
         <ActivityIndicator size="large" color="#d81e06" />
-        <Text style={{ marginTop: 12, color: '#666' }}>
-          加载帖子详情中...
-        </Text>
+        <Text style={{ marginTop: 12, color: '#666' }}>加载帖子详情中...</Text>
       </View>
     );
   }
@@ -208,7 +203,7 @@ console.log('[PostDetailScreen] route params →', initialPost);
             }}
             onReplyLike={toggleReplyLike}
             onReplyToReply={handleReply}
-            onDeleteReply={handleDeleteComment}
+            onDeleteReply={(replyId, parentId) => handleDeleteComment(replyId, parentId)}
           />
         )}
         onEndReached={loadMore}
