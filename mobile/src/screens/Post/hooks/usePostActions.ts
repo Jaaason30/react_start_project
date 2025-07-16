@@ -21,15 +21,13 @@ export const usePostActions = (
     if (!post) return;
     try {
       const url = `${API_ENDPOINTS.USER_FOLLOW_SHORT}/${post.author.shortId}`;
-      console.log('[usePostActions] toggleFollow →', url);
       if (isFollowing) {
         await apiClient.delete(url);
       } else {
         await apiClient.post(url);
       }
       setIsFollowing(!isFollowing);
-    } catch (err) {
-      console.error('[usePostActions] toggleFollow error', err);
+    } catch {
       Alert.alert(isFollowing ? '取消关注失败' : '关注失败');
     }
   };
@@ -38,15 +36,16 @@ export const usePostActions = (
   const toggleReaction = async (type: 'LIKE' | 'COLLECT') => {
     if (!post) return;
     try {
-      const url = `${API_ENDPOINTS.POST_REACTIONS.replace(':uuid', postUuid)}`;
-      console.log('[usePostActions] toggleReaction →', url, 'type:', type);
       const { data } = await apiClient.post<{
         likeCount: number;
         collectCount: number;
         commentCount: number;
         likedByCurrentUser: boolean;
         collectedByCurrentUser: boolean;
-      }>(url, { type });
+      }>(
+        API_ENDPOINTS.POST_REACTIONS.replace(':uuid', postUuid),
+        { type }
+      );
 
       if (!data) {
         Alert.alert('操作失败', '服务器响应异常，请稍后重试');
@@ -70,8 +69,7 @@ export const usePostActions = (
       // 再同步本地 isLiked/isCollected
       setIsLiked(data.likedByCurrentUser);
       setIsCollected(data.collectedByCurrentUser);
-    } catch (err) {
-      console.error('[usePostActions] toggleReaction error', err);
+    } catch {
       Alert.alert('操作失败', '网络错误，请稍后重试');
     }
   };

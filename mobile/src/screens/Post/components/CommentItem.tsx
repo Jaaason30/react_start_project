@@ -45,11 +45,7 @@ export const CommentItem: React.FC<CommentItemProps> = ({
   const meShortId = currentUserShortId ?? ctxShortId;
 
   // 如果 author 未定义，兜底一个空对象
-  const author = comment.author || {
-    shortId: 0,
-    nickname: '匿名',
-    profilePictureUrl: undefined,
-  };
+  const author = comment.author 
 
   // 如果 replyToUser 未定义，兜底一个空对象
   const replyTo = comment.replyToUser || {

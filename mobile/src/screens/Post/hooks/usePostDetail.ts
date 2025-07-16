@@ -27,7 +27,7 @@ export const usePostDetail = (postUuid: string) => {
       // 处理作者头像 URL
       const rawProfileUrl = data.author?.profilePictureUrl;
       const profileUrl = patchProfileUrl(rawProfileUrl, avatarVersion) || null;
-    console.log('[usePostDetail] response data →', data);
+      console.log('[usePostDetail] response data →', data);
       // 处理帖子图片列表
       const processedImages: string[] = (data.images || []).map((img: any) =>
         patchUrl(img.url) || img.url
