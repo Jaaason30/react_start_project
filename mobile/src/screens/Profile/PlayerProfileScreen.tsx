@@ -1,6 +1,6 @@
 // src/screens/PlayerProfileScreen.tsx
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import {
   View,
   Text,
@@ -8,20 +8,20 @@ import {
   SafeAreaView,
   ScrollView,
   FlatList,
-  Dimensions,
   ActivityIndicator,
+  StyleSheet,
 } from 'react-native';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import FastImage from 'react-native-fast-image';
+
 import { useUserProfile } from '../../contexts/UserProfileContext';
 import { styles } from '../../theme/PlayerProfileScreen.styles';
 import { apiClient } from '../../services/apiClient';
 import { API_ENDPOINTS, BASE_URL } from '../../constants/api';
 
-const { width } = Dimensions.get('window');
-
+/* ---------- 路由类型 ---------- */
 type RootStackParamList = {
   Dashboard: undefined;
   SeatOverview: undefined;
@@ -30,9 +30,10 @@ type RootStackParamList = {
   PostDetail: { post: any };
   EditProfile: undefined;
 };
-type NavType = NativeStackNavigationProp<RootStackParamList>;
+type NavType   = NativeStackNavigationProp<RootStackParamList>;
 type RouteType = RouteProp<RootStackParamList, 'PlayerProfile'>;
 
+/* ---------- 帖子结构 ---------- */
 type PostItem = {
   uuid: string;
   title?: string;
@@ -42,118 +43,107 @@ type PostItem = {
   likeCount?: number;
 };
 
+/* ---------- 底部标签定义 ---------- */
+const TAB_ITEMS = [
+  { key: 'heart',  label: '心动', icon: 'heart-outline',      screen: 'Dashboard'     },
+  { key: 'chat',   label: '聊天', icon: 'chatbubbles-outline', screen: 'SeatOverview' },
+  { key: 'square', label: '广场', icon: 'apps-outline',       screen: 'Discover'      },
+  { key: 'me',     label: '我的', icon: 'person-outline',     screen: 'PlayerProfile' },
+] as const;
+type TabKey = typeof TAB_ITEMS[number]['key'];
+
 export default function PlayerProfileScreen() {
-  const navigation = useNavigation<NavType>();
-  const route = useRoute<RouteType>();
-  const { profileData, avatarVersion } = useUserProfile();
+  const navigation      = useNavigation<NavType>();
+  const route           = useRoute<RouteType>();
+  const { avatarVersion } = useUserProfile();
 
-  const [userData, setUserData] = useState<any | null>(null);
-  const [posts, setPosts] = useState<PostItem[]>([]);
-  const [isLoading, setIsLoading] = useState<boolean>(true);
-  const [error, setError] = useState<string | null>(null);
+  const [userData,  setUserData]  = useState<any | null>(null);
+  const [posts,     setPosts]     = useState<PostItem[]>([]);
+  const [loading,   setLoading]   = useState(true);
+  const [error,     setError]     = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState<TabKey>('square');
 
-  // 确定资料拉取方式：shortId 用于其它数据，posts 始终用 UUID
+  const listRef = useRef<FlatList<PostItem>>(null);
+
+  /* ---------- 判断角色 ---------- */
   const targetShortId = route.params?.shortId;
-  const authorUuid = route.params?.userId ?? profileData?.uuid;
-  const isOwnProfile = !targetShortId || targetShortId === profileData?.shortId;
+  const targetUserId  = route.params?.userId;
+  const isOwnProfile  = !targetShortId && !targetUserId;
 
+  /* ---------- 加载数据 ---------- */
   useEffect(() => {
-    const fetchData = async () => {
-      setIsLoading(true);
+    (async () => {
+      setLoading(true);
       setError(null);
-
       try {
-        // —— 拉用户资料 —— (shortId or JWT)
-        const profileRes = isOwnProfile
-          ? await apiClient.get<any>(API_ENDPOINTS.USER_ME)
-          : await apiClient.get<any>(
-              `${API_ENDPOINTS.USER_BY_SHORT_ID}/${targetShortId}`
-            );
+        // 1) 用户资料
+        let info: any = null;
+        if (isOwnProfile) {
+          const r = await apiClient.get(API_ENDPOINTS.USER_ME);
+          if (r.error) throw new Error(r.error);
+          info = r.data;
+        } else if (targetShortId) {
+          const r = await apiClient.get(`${API_ENDPOINTS.USER_BY_SHORT_ID}/${targetShortId}`);
+          if (r.error) throw new Error(r.error);
+          info = r.data;
+        } 
+        if (!info) { setError('无法获取用户信息'); return; }
+        setUserData(info);
 
-        if (profileRes.error) {
-          setError(profileRes.error);
-          return;
+        // 2) 帖子列表
+        let endpoint = '';
+        if (info.shortId) {
+          endpoint = `${API_ENDPOINTS.POSTS_BY_SHORT_ID}/${info.shortId}?page=0&size=20`;
+        } else if (isOwnProfile) {
+          endpoint = `${API_ENDPOINTS.POSTS_ME}?page=0&size=20`;
         }
-        setUserData(profileRes.data);
-
-        // —— 拉帖子列表 —— 始终使用 UUID
-        const postsRes = await apiClient.get<{ content: PostItem[] }>(
-          `${API_ENDPOINTS.POSTS_BY_AUTHOR.replace(
-            ':authorUuid',
-            authorUuid!
-          )}?page=0&size=20`
-        );
-        if (postsRes.error) {
-          console.warn('Load posts error:', postsRes.error);
+        if (endpoint) {
+          const r = await apiClient.get<{ content: PostItem[] }>(endpoint);
+          if (!r.error) setPosts(r.data?.content || []);
         } else {
-          setPosts(postsRes.data?.content || []);
+          setPosts([]);
         }
-      } catch (err: any) {
-        setError(err.message || '加载失败，请重试');
+      } catch (e: any) {
+        setError(e.message || '加载失败，请重试');
       } finally {
-        setIsLoading(false);
+        setLoading(false);
       }
-    };
+    })();
+  }, [route.params?.shortId, route.params?.userId, avatarVersion]);
 
-    if (authorUuid !== undefined) {
-      fetchData();
-    }
-  }, [
-    route.params?.shortId,
-    route.params?.userId,
-    profileData?.shortId,
-    profileData?.uuid,
-    avatarVersion,
-  ]);
+  /* ---------- 状态渲染 ---------- */
+  if (loading) return (
+    <SafeAreaView style={styles.loadingContainer}>
+      <ActivityIndicator size="large" />
+    </SafeAreaView>
+  );
+  if (error) return (
+    <SafeAreaView style={styles.loadingContainer}>
+      <Text style={styles.errorText}>{error}</Text>
+    </SafeAreaView>
+  );
+  if (!userData) return (
+    <SafeAreaView style={styles.loadingContainer}>
+      <Text style={styles.errorText}>暂无用户信息</Text>
+    </SafeAreaView>
+  );
 
-  if (isLoading) {
-    return (
-      <SafeAreaView style={styles.loadingContainer}>
-        <ActivityIndicator size="large" />
-      </SafeAreaView>
-    );
-  }
-  if (error) {
-    return (
-      <SafeAreaView style={styles.loadingContainer}>
-        <Text style={styles.errorText}>{error}</Text>
-        <TouchableOpacity style={styles.backButton} onPress={() => navigation.goBack()}>
-          <Text style={styles.backButtonText}>返回</Text>
-        </TouchableOpacity>
-      </SafeAreaView>
-    );
-  }
-  if (!userData) {
-    return (
-      <SafeAreaView style={styles.loadingContainer}>
-        <Text style={styles.errorText}>暂无用户信息</Text>
-      </SafeAreaView>
-    );
-  }
-
-  const avatarUri = userData.profilePictureUrl
-    ? `${BASE_URL}${userData.profilePictureUrl}?v=${avatarVersion}`
-    : 'https://via.placeholder.com/200x200.png?text=No+Avatar';
-
+  /* ---------- 渲染单条帖子 ---------- */
   const renderPost = ({ item }: { item: PostItem }) => {
-    const coverUri = item.coverUrl
+    const cover = item.coverUrl
       ? (item.coverUrl.startsWith('http') ? item.coverUrl : BASE_URL + item.coverUrl)
       : item.images?.[0]?.url
-      ? (item.images![0].url.startsWith('http')
-          ? item.images![0].url
-          : BASE_URL + item.images![0].url)
-      : 'https://via.placeholder.com/400x600.png?text=No+Image';
+        ? (item.images[0].url.startsWith('http') ? item.images[0].url : BASE_URL + item.images[0].url)
+        : 'https://via.placeholder.com/400x600.png?text=No+Image';
 
     return (
       <TouchableOpacity
         style={styles.card}
         activeOpacity={0.8}
-        onPress={() => navigation.navigate('PostDetail', { post: { ...item, coverUri } })}
+        onPress={() => navigation.navigate('PostDetail', { post: { ...item, coverUri: cover } })}
       >
-        <FastImage source={{ uri: coverUri }} style={styles.cardImage} resizeMode="cover" />
-        <Text style={styles.cardTitle} numberOfLines={2}>
-          {item.title ?? '（无标题）'}
-        </Text>
+        <FastImage source={{ uri: cover }} style={styles.cardImage} resizeMode="cover" />
+        <Text style={styles.cardTitle} numberOfLines={2}>{item.title ?? '（无标题）'}</Text>
         <View style={styles.cardFooter}>
           <Text style={styles.author}>{userData.nickname || '匿名'}</Text>
           <View style={styles.likesRow}>
@@ -165,6 +155,7 @@ export default function PlayerProfileScreen() {
     );
   };
 
+  /* ---------- 主界面 ---------- */
   return (
     <SafeAreaView style={styles.container}>
       {/* 顶部栏 */}
@@ -179,7 +170,15 @@ export default function PlayerProfileScreen() {
 
       {/* 头像 & 基本信息 */}
       <View style={styles.identitySection}>
-        <FastImage source={{ uri: avatarUri }} style={styles.avatar} resizeMode="cover" />
+        <FastImage
+          source={{
+            uri: userData.profilePictureUrl
+              ? `${BASE_URL}${userData.profilePictureUrl}?v=${avatarVersion}`
+              : 'https://via.placeholder.com/200x200.png?text=No+Avatar'
+          }}
+          style={styles.avatar}
+          resizeMode="cover"
+        />
         <View style={styles.identityText}>
           <Text style={styles.username}>{userData.nickname}</Text>
           <Text style={styles.userId}>ID: {userData.shortId ?? '未设置'}</Text>
@@ -201,12 +200,12 @@ export default function PlayerProfileScreen() {
       {/* 相册预览 */}
       {Array.isArray(userData.albumUrls) && userData.albumUrls.length > 0 && (
         <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.albumScroll}>
-          {userData.albumUrls.map((uri: string, idx: number) => {
-            const base = uri.startsWith('http') ? uri : BASE_URL + uri;
+          {userData.albumUrls.map((u: string, i: number) => {
+            const src = u.startsWith('http') ? u : BASE_URL + u;
             return (
               <FastImage
-                key={idx}
-                source={{ uri: `${base}?v=${avatarVersion}` }}
+                key={i}
+                source={{ uri: `${src}?v=${avatarVersion}` }}
                 style={styles.albumImage}
                 resizeMode="cover"
               />
@@ -217,8 +216,9 @@ export default function PlayerProfileScreen() {
 
       {/* 帖子列表 */}
       <FlatList
+        ref={listRef}
         data={posts}
-        keyExtractor={(item) => item.uuid}
+        keyExtractor={(it) => it.uuid}
         renderItem={renderPost}
         contentContainerStyle={styles.postListContainer}
         ListEmptyComponent={
@@ -227,6 +227,66 @@ export default function PlayerProfileScreen() {
           </View>
         }
       />
+
+      {/* 底部导航栏 */}
+      <View style={inlineStyles.bottomBar}>
+        {TAB_ITEMS.map(tab => {
+          const isActive = activeTab === tab.key;
+          return (
+            <TouchableOpacity
+              key={tab.key}
+              style={inlineStyles.bottomItem}
+              activeOpacity={0.6}
+              onPress={() => {
+                if (tab.key === 'me') {
+                  listRef.current?.scrollToOffset({ offset: 0, animated: true });
+                } else {
+                  navigation.navigate(tab.screen);
+                }
+                setActiveTab(tab.key);
+              }}
+            >
+              <Ionicons
+                name={tab.icon}
+                size={24}
+                color={isActive ? '#d81e06' : '#888'}
+              />
+              <Text style={[
+                inlineStyles.bottomLabel,
+                isActive && inlineStyles.bottomLabelActive
+              ]}>
+                {tab.label}
+              </Text>
+            </TouchableOpacity>
+          );
+        })}
+      </View>
     </SafeAreaView>
   );
 }
+
+const inlineStyles = StyleSheet.create({
+  bottomBar: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    alignItems: 'center',
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: '#eee',
+    backgroundColor: '#fff',
+    height: 56,
+  },
+  bottomItem: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  bottomLabel: {
+    fontSize: 12,
+    marginTop: 2,
+    color: '#888',
+  },
+  bottomLabelActive: {
+    color: '#d81e06',
+    fontWeight: 'bold',
+  },
+});

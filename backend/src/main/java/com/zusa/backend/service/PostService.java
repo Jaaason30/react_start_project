@@ -1,4 +1,3 @@
-// src/main/java/com/zusa/backend/service/PostService.java
 package com.zusa.backend.service;
 
 import com.zusa.backend.dto.post.PostDetailDto;
@@ -53,6 +52,7 @@ public interface PostService {
     Page<PostSummaryDto> search(String keyword,
                                 UUID currentUserUuid,
                                 Pageable pageable);
+
     /**
      * 按作者查询帖子
      *
@@ -65,4 +65,15 @@ public interface PostService {
                                       UUID currentUserUuid,
                                       Pageable pageable);
 
+    /**
+     * 按作者 shortId 查询帖子
+     *
+     * @param authorShortId   作者的 shortId
+     * @param currentUserUuid 当前登录用户 UUID（可为 null）
+     * @param pageable        分页参数
+     * @return 该作者的帖子摘要分页
+     */
+    Page<PostSummaryDto> listByAuthorShortId(Long authorShortId,
+                                             UUID currentUserUuid,
+                                             Pageable pageable);
 }

@@ -1,5 +1,4 @@
 // src/contexts/UserProfileContext.tsx
-
 import React, {
   createContext,
   useContext,
@@ -13,21 +12,17 @@ import { API_ENDPOINTS } from '../constants/api';
 import type { PartialUserDto } from '../types/User.types';
 import { Buffer } from 'buffer';
 
-// Helper: decode JWT payload
-function decodeJWT(token: string): any {
+/* ---------- 工具：解码 JWT ---------- */
+function decodeJWT(token: string) {
   try {
-    const parts = token.split('.');
-    if (parts.length !== 3) return null;
-    const decoded = Buffer.from(parts[1], 'base64').toString('utf8');
-    return JSON.parse(decoded);
+    const [, payload] = token.split('.');
+    return payload ? JSON.parse(Buffer.from(payload, 'base64').toString('utf8')) : null;
   } catch {
     return null;
   }
 }
 
-// Debug: print token status on module load
-console.log('[UserProfileContext] Token Status →', checkTokenStatus());
-
+/* ---------- 上下文类型 ---------- */
 type ContextType = {
   profileData: PartialUserDto | null;
   setProfileData: React.Dispatch<React.SetStateAction<PartialUserDto | null>>;
@@ -38,7 +33,7 @@ type ContextType = {
   isLoading: boolean;
 };
 
-const defaultValue: ContextType = {
+const defaultCtx: ContextType = {
   profileData: null,
   setProfileData: () => {},
   refreshProfile: async () => {},
@@ -48,111 +43,75 @@ const defaultValue: ContextType = {
   isLoading: true,
 };
 
-export const UserProfileContext = createContext<ContextType>(defaultValue);
+export const UserProfileContext = createContext<ContextType>(defaultCtx);
 
-export const UserProfileProvider: React.FC<{ children: React.ReactNode }> = ({
-  children,
-}) => {
+/* ---------- Provider ---------- */
+export const UserProfileProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [profileData, setProfileData] = useState<PartialUserDto | null>(null);
   const [avatarVersion, setAvatarVersion] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
 
-  // Init: fetch current user's profile using JWT-derived UUID
-  useEffect(() => {
-    const initProfile = async () => {
-      const token = tokenManager.getAccessToken();
-      if (!token) {
-        console.warn('[UserProfileProvider] no access token—skipping init');
-        setIsLoading(false);
-        return;
-      }
+  /* ----- 强制刷新头像用 ----- */
+  const bumpAvatarVersion = useCallback(() => setAvatarVersion((v) => v + 1), []);
 
-      const payload = decodeJWT(token);
-      const uuid =
-        payload?.sub || payload?.user_name || payload?.username || null;
-      if (!uuid) {
-        console.warn('[UserProfileProvider] unable to decode UUID from token');
-        setIsLoading(false);
-        return;
-      }
-
-      const endpoint = `${API_ENDPOINTS.USER_PROFILE}?userUuid=${uuid}`;
-      console.log('[UserProfileProvider] initProfile →', endpoint);
-
-      try {
-        const { data, status, error } = await apiClient.get<PartialUserDto>(
-          endpoint
-        );
-        console.log(
-          '[UserProfileProvider] initProfile status=',
-          status,
-          'error=',
-          error,
-          'payload=',
-          data
-        );
-        if (status === 200 && data) {
-          setProfileData(data);
-        }
-      } catch (err) {
-        console.error(
-          '[UserProfileProvider] init fetch profile failed:',
-          err
-        );
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
-    initProfile();
-  }, []);
-
-  // Bump avatar version to force-refresh image
-  const bumpAvatarVersion = useCallback(() => {
-    setAvatarVersion((v) => v + 1);
-  }, []);
-
-  // Clear profile data (e.g., on logout)
+  /* ----- 清空 Profile（登出） ----- */
   const clearProfileData = useCallback(() => {
     setProfileData(null);
     setAvatarVersion(0);
   }, []);
 
-  // Manually refresh profile (e.g., pull-to-refresh)
+  /* ---------- 初始化：根据 token 自动加载 /me ---------- */
+  useEffect(() => {
+    const init = async () => {
+      const token = tokenManager.getAccessToken();
+      if (!token) return setIsLoading(false);
+
+      const uid = decodeJWT(token)?.sub;
+      if (!uid) return setIsLoading(false);
+
+      try {
+        // 1) 先尝试旧接口 /user/profile?userUuid=xxx
+        let { data, status, error } = await apiClient.get<PartialUserDto>(
+          `${API_ENDPOINTS.USER_PROFILE}?userUuid=${uid}`,
+        );
+
+        // 2) 如果404则降级到 /user/me
+        if (status === 404) {
+          ({ data, status, error } = await apiClient.get<PartialUserDto>(API_ENDPOINTS.USER_ME));
+        }
+
+        if (status === 200 && data) setProfileData(data);
+        else console.warn('[UserProfileProvider] initProfile error:', error);
+      } catch (err) {
+        console.error('[UserProfileProvider] initProfile network error:', err);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    init();
+  }, []);
+
+  /* ---------- 手动刷新 ---------- */
   const refreshProfile = useCallback(async () => {
-    const uuid = profileData?.uuid;
-    if (!uuid) {
-      console.warn('[refreshProfile] no uuid, aborting');
+    if (!profileData?.uuid) {
+      console.warn('[refreshProfile] no uuid, abort');
       return;
     }
-
     setIsLoading(true);
-    const endpoint = `${API_ENDPOINTS.USER_PROFILE}?userUuid=${uuid}`;
-    console.log('[refreshProfile] calling →', endpoint);
 
     try {
       const { data, status, error } = await apiClient.get<PartialUserDto>(
-        endpoint
+        `${API_ENDPOINTS.USER_PROFILE}?userUuid=${profileData.uuid}`,
       );
-      console.log(
-        '[refreshProfile] status=',
-        status,
-        'error=',
-        error,
-        'payload=',
-        data
-      );
+
       if (status === 200 && data) {
-        if (
-          data.profilePictureUrl &&
-          data.profilePictureUrl !== profileData.profilePictureUrl
-        ) {
-          bumpAvatarVersion();
-        }
-        setProfileData((prev) => (prev ? { ...prev, ...data } : data));
+        if (data.profilePictureUrl !== profileData.profilePictureUrl) bumpAvatarVersion();
+        setProfileData((prev) => ({ ...prev!, ...data }));
+      } else {
+        console.warn('[refreshProfile] error:', error);
       }
     } catch (err) {
-      console.error('[refreshProfile] Failed to refresh profile:', err);
+      console.error('[refreshProfile] network error:', err);
     } finally {
       setIsLoading(false);
     }
@@ -175,4 +134,5 @@ export const UserProfileProvider: React.FC<{ children: React.ReactNode }> = ({
   );
 };
 
+/* ---------- 便捷 Hook ---------- */
 export const useUserProfile = () => useContext(UserProfileContext);

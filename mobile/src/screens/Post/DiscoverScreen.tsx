@@ -32,7 +32,7 @@ export type RootStackParamList = {
   SeatPage: { seatId: string };
   Discover: undefined;
   Search: undefined;
-  PlayerProfile: { userId?: string };
+  PlayerProfile: { userId?: string };  // 暂时保持原来的 userId
   PostCreation: undefined;
   PostDetail: { post: any };
 };
@@ -113,6 +113,14 @@ export default function DiscoverScreen() {
         : `${BASE_URL}${author.profilePictureUrl}`
       : 'https://via.placeholder.com/16';
 
+    // 处理作者点击事件
+    const handleAuthorPress = () => {
+      // 暂时保持原来的逻辑，稍后再修改
+      if (author?.uuid) {
+        navigation.navigate('PlayerProfile', { userId: author.uuid });
+      }
+    };
+
     return (
       <TouchableOpacity
         style={styles.card}
@@ -129,10 +137,14 @@ export default function DiscoverScreen() {
           {item.title ?? '（无标题）'}
         </Text>
         <View style={styles.cardFooter}>
-          <View style={styles.authorContainer}>
+          <TouchableOpacity 
+            style={styles.authorContainer}
+            onPress={handleAuthorPress}
+            activeOpacity={0.7}
+          >
             <FastImage source={{ uri: avatarUri }} style={styles.authorAvatar} />
             <Text style={styles.author}>{author?.nickname ?? '匿名'}</Text>
-          </View>
+          </TouchableOpacity>
           <View style={styles.likesRow}>
             <Ionicons name="heart-outline" size={14} color="#888" />
             <Text style={styles.likesText}>{item.likeCount ?? 0}</Text>
@@ -237,4 +249,3 @@ export default function DiscoverScreen() {
     </View>
   );
 }
-

@@ -17,26 +17,37 @@ export const API_ENDPOINTS = {
   USER_ME_UPDATE: '/api/user/me',
   USER_ME_FOLLOWERS: '/api/user/me/followers',
   USER_ME_FOLLOWING: '/api/user/me/following',
-
+  USER_PROFILE: '/api/user/profile',  
   // 其它用户接口（shortId）
   USER_BY_SHORT_ID: '/api/user/profile/short',      // + '/{shortId}'
   USER_FOLLOW: '/api/user/follow',                  // + '/{shortId}' (POST/DELETE)
   USER_FOLLOWERS_BY_SHORT_ID: '/api/user',          // + '/{shortId}/followers'
   USER_FOLLOWING_BY_SHORT_ID: '/api/user',          // + '/{shortId}/following'
 
-  // 帖子
-  POSTS_FEED: '/api/posts/feed',
-  POSTS_ME: '/api/posts/me',
-  POSTS_BY_AUTHOR: '/api/posts/user/:authorUuid',   // + '?page=…&size=…' （使用 UUID）
+  // 帖子 - 当前用户
+  POSTS_ME: '/api/posts/me',                        // GET 获取当前用户的帖子
+  
+  // 帖子 - 基础功能
+  POSTS_FEED: '/api/posts/feed',                    // GET + '?type=USER|OFFICIAL|FOLLOWED'
+  POSTS_CREATE: '/api/posts',                       // POST 创建帖子（multipart/form-data）
   POST_DETAIL: '/api/posts',                        // GET '/api/posts/{uuid}'
+  POST_UPDATE: '/api/posts',                        // PATCH '/api/posts/{uuid}'
+  POST_DELETE: '/api/posts',                        // DELETE '/api/posts/{uuid}'
+  
+  // 帖子 - 按作者查询
+  POSTS_BY_AUTHOR: '/api/posts/user',          // + '/{authorUuid}' （保留兼容）
+  POSTS_BY_SHORT_ID: '/api/posts/user/short',       // + '/{shortId}' （新增）
+  
+  // 帖子 - 互动
   POST_REACTIONS: '/api/posts/:uuid/reactions',
   POST_COMMENTS: '/api/posts/:uuid/comments',
 
   // 搜索
-  POSTS_SEARCH: '/api/posts/search',                 // GET '/api/posts/search?kw=…&shortId=…'
+  POSTS_SEARCH: '/api/posts/search',                 // GET + '?kw=…'
 
   // 标签
-  TAGS_HOT: '/api/tags/hot',                         // GET '/api/tags/hot?limit=…'
+  TAGS_HOT: '/api/tags/hot',                         // GET + '?limit=…'
+  POSTS_BY_TAG: '/api/posts/tag',                    // GET + '/{tagName}'（如果有的话）
 
   // 评论
   COMMENT_LIKES: '/api/comments/:id/likes',

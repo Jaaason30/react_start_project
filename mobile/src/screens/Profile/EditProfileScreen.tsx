@@ -222,7 +222,7 @@ export default function EditProfileScreen() {
 
       // 只有有修改时才发送请求
       if (Object.keys(payload).length > 0) {
-        const endpoint = `${API_ENDPOINTS.USER_UPDATE}?userUuid=${profileData.uuid}`;
+        const endpoint = `${API_ENDPOINTS.USER_ME_UPDATE}?userUuid=${profileData.uuid}`;
         const response = await apiClient.patch(endpoint, payload);
         if (response.error) throw new Error(response.error);
 

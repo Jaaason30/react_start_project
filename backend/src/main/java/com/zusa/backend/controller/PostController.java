@@ -152,7 +152,24 @@ public class PostController {
     }
 
     /* ====================================================== */
-    /*                 7) 按作者查询 /posts/user/{authorUuid}  */
+    /*            7) 获取当前用户的帖子 /posts/me             */
+    /* ====================================================== */
+    @GetMapping("/posts/me")
+    public Page<PostSummaryDto> getMyPosts(
+            Pageable pageable,
+            @AuthenticationPrincipal UserDetails principal) {
+
+        if (principal == null) {
+            throw new RuntimeException("请登录");
+        }
+
+        UUID authorUuid = UUID.fromString(principal.getUsername());
+        return postService.listByAuthor(authorUuid, authorUuid, pageable);
+    }
+
+    /* ====================================================== */
+    /*     8) 按作者UUID查询 /posts/user/{authorUuid}         */
+    /*        (保留以向后兼容)                                */
     /* ====================================================== */
     @GetMapping("/posts/user/{authorUuid}")
     public Page<PostSummaryDto> listByAuthor(
@@ -165,5 +182,21 @@ public class PostController {
                 : null;
 
         return postService.listByAuthor(authorUuid, me, pageable);
+    }
+
+    /* ====================================================== */
+    /*   9) 按作者shortId查询 /posts/user/short/{shortId}     */
+    /* ====================================================== */
+    @GetMapping("/posts/user/short/{shortId}")
+    public Page<PostSummaryDto> listByAuthorShortId(
+            @PathVariable Long shortId,
+            Pageable pageable,
+            @AuthenticationPrincipal UserDetails principal) {
+
+        UUID me = (principal != null)
+                ? UUID.fromString(principal.getUsername())
+                : null;
+
+        return postService.listByAuthorShortId(shortId, me, pageable);
     }
 }
