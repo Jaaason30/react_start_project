@@ -1,3 +1,4 @@
+// src/main/java/com/zusa/backend/controller/UserController.java
 package com.zusa.backend.controller;
 
 import com.zusa.backend.dto.user.UserDto;
@@ -8,6 +9,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.core.userdetails.UserDetails;
@@ -31,11 +33,11 @@ public class UserController {
             @AuthenticationPrincipal UserDetails principal
     ) {
         if (principal == null) {
-            return ResponseEntity.status(401).build();
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
         }
-        UUID userUuid = UUID.fromString(principal.getUsername());
-        log.info("[Controller] GET /me — current UUID = {}", userUuid);
-        return ResponseEntity.ok(userService.getUserProfileByUuid(userUuid));
+        UUID currentUuid = UUID.fromString(principal.getUsername());
+        log.info("[Controller] GET /me — UUID = {}", currentUuid);
+        return ResponseEntity.ok(userService.getUserProfileByUuid(currentUuid));
     }
 
     /** 更新当前用户资料 */
@@ -45,11 +47,11 @@ public class UserController {
             @AuthenticationPrincipal UserDetails principal
     ) {
         if (principal == null) {
-            return ResponseEntity.status(401).build();
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
         }
-        UUID userUuid = UUID.fromString(principal.getUsername());
-        log.info("[Controller] PATCH /me — update UUID = {}", userUuid);
-        userService.updateProfilePartially(req, userUuid);
+        UUID currentUuid = UUID.fromString(principal.getUsername());
+        log.info("[Controller] PATCH /me — UUID = {}", currentUuid);
+        userService.updateProfilePartially(req, currentUuid);
         return ResponseEntity.ok().build();
     }
 
@@ -60,12 +62,11 @@ public class UserController {
             Pageable pageable
     ) {
         if (principal == null) {
-            return ResponseEntity.status(401).build();
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
         }
-        UUID userUuid = UUID.fromString(principal.getUsername());
-        log.info("[Controller] GET /me/followers — UUID = {}", userUuid);
-        Page<UserSummaryDto> page = userService.listFollowers(userUuid, pageable);
-        return ResponseEntity.ok(page);
+        UUID currentUuid = UUID.fromString(principal.getUsername());
+        log.info("[Controller] GET /me/followers — UUID = {}", currentUuid);
+        return ResponseEntity.ok(userService.listFollowers(currentUuid, pageable));
     }
 
     /** 获取当前用户的关注列表 */
@@ -75,90 +76,100 @@ public class UserController {
             Pageable pageable
     ) {
         if (principal == null) {
-            return ResponseEntity.status(401).build();
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
         }
-        UUID userUuid = UUID.fromString(principal.getUsername());
-        log.info("[Controller] GET /me/following — UUID = {}", userUuid);
-        Page<UserSummaryDto> page = userService.listFollowing(userUuid, pageable);
-        return ResponseEntity.ok(page);
+        UUID currentUuid = UUID.fromString(principal.getUsername());
+        log.info("[Controller] GET /me/following — UUID = {}", currentUuid);
+        return ResponseEntity.ok(userService.listFollowing(currentUuid, pageable));
     }
 
-    // ==================== 按 UUID 的旧接口（保持兼容） ====================
+    // ==================== 旧 UUID 接口（@Deprecated） ====================
 
-    /** 根据 UUID 查询用户资料 */
+    @Deprecated
     @GetMapping("/profile")
     public ResponseEntity<UserDto> getProfileByUuid(
             @RequestParam("userUuid") UUID userUuid
     ) {
-        log.info("[Controller] GET /profile — userUuid = {}", userUuid);
+        log.warn("[Deprecated] GET /profile — userUuid = {}", userUuid);
         return ResponseEntity.ok(userService.getUserProfileByUuid(userUuid));
     }
 
-    /** 更新指定 UUID 用户资料 */
+    @Deprecated
     @PatchMapping("/profile")
     public ResponseEntity<Void> updateProfilePartially(
             @RequestBody UserDto req,
             @RequestParam("userUuid") UUID userUuid
     ) {
-        log.info("[Controller] PATCH /profile — userUuid = {}", userUuid);
+        log.warn("[Deprecated] PATCH /profile — userUuid = {}", userUuid);
         userService.updateProfilePartially(req, userUuid);
         return ResponseEntity.ok().build();
     }
 
-    /** 获取指定 UUID 用户的粉丝列表 */
+    @Deprecated
     @GetMapping("/followers")
     public ResponseEntity<Page<UserSummaryDto>> getFollowers(
             @RequestParam("userUuid") UUID userUuid,
             Pageable pageable
     ) {
-        log.info("[Controller] GET /followers — userUuid = {}", userUuid);
-        Page<UserSummaryDto> page = userService.listFollowers(userUuid, pageable);
-        return ResponseEntity.ok(page);
+        log.warn("[Deprecated] GET /followers — userUuid = {}", userUuid);
+        return ResponseEntity.ok(userService.listFollowers(userUuid, pageable));
     }
 
-    /** 获取指定 UUID 用户的关注列表 */
+    @Deprecated
     @GetMapping("/following")
     public ResponseEntity<Page<UserSummaryDto>> getFollowing(
             @RequestParam("userUuid") UUID userUuid,
             Pageable pageable
     ) {
-        log.info("[Controller] GET /following — userUuid = {}", userUuid);
-        Page<UserSummaryDto> page = userService.listFollowing(userUuid, pageable);
-        return ResponseEntity.ok(page);
+        log.warn("[Deprecated] GET /following — userUuid = {}", userUuid);
+        return ResponseEntity.ok(userService.listFollowing(userUuid, pageable));
     }
 
-    /** 关注用户（使用 UUID） */
+    @Deprecated
     @PostMapping("/follow")
     public ResponseEntity<Void> follow(
             @RequestParam("userUuid") UUID userUuid,
             @RequestParam("targetUuid") UUID targetUuid
     ) {
-        log.info("[Controller] POST /follow — userUuid = {}, targetUuid = {}", userUuid, targetUuid);
+        log.warn("[Deprecated] POST /follow — userUuid = {}, targetUuid = {}", userUuid, targetUuid);
         userService.follow(userUuid, targetUuid);
         return ResponseEntity.ok().build();
     }
 
-    /** 取消关注（使用 UUID） */
+    @Deprecated
     @DeleteMapping("/follow")
     public ResponseEntity<Void> unfollow(
             @RequestParam("userUuid") UUID userUuid,
             @RequestParam("targetUuid") UUID targetUuid
     ) {
-        log.info("[Controller] DELETE /follow — userUuid = {}, targetUuid = {}", userUuid, targetUuid);
+        log.warn("[Deprecated] DELETE /follow — userUuid = {}, targetUuid = {}", userUuid, targetUuid);
         userService.unfollow(userUuid, targetUuid);
         return ResponseEntity.ok().build();
     }
+
+    // ==================== 新 shortId 接口 ====================
 
     /** 根据 shortId 查询用户资料 */
     @GetMapping("/profile/short/{shortId}")
     public ResponseEntity<UserDto> getProfileByShortId(
             @PathVariable("shortId") Long shortId
     ) {
-        log.info("[Controller] GET /profile/short/{}, shortId = {}", shortId, shortId);
+        log.info("[Controller] GET /profile/short/{} — shortId = {}", shortId, shortId);
         return ResponseEntity.ok(userService.getUserProfileByShortId(shortId));
     }
 
-    // ==================== 新增 shortId 接口 ====================
+    /** 更新指定 shortId 用户资料 */
+    @PatchMapping("/profile/short/{shortId}")
+    public ResponseEntity<Void> updateProfileByShortId(
+            @PathVariable("shortId") Long shortId,
+            @RequestBody UserDto req,
+            @AuthenticationPrincipal UserDetails principal
+    ) {
+        UUID currentUuid = UUID.fromString(principal.getUsername());
+        log.info("[Controller] PATCH /profile/short/{} — current UUID = {}", shortId, currentUuid);
+        userService.updateProfileByShortId(req, shortId);
+        return ResponseEntity.ok().build();
+    }
 
     /** 关注用户（使用 shortId，当前用户从 JWT 提取） */
     @PostMapping("/follow/{targetShortId}")
@@ -166,9 +177,9 @@ public class UserController {
             @PathVariable("targetShortId") Long targetShortId,
             @AuthenticationPrincipal UserDetails principal
     ) {
-        UUID userUuid = UUID.fromString(principal.getUsername());
-        log.info("[Controller] POST /follow/{} — current UUID = {}", targetShortId, userUuid);
-        userService.followByShortId(userUuid, targetShortId);
+        UUID currentUuid = UUID.fromString(principal.getUsername());
+        log.info("[Controller] POST /follow/{} — current UUID = {}", targetShortId, currentUuid);
+        userService.followByShortId(currentUuid, targetShortId);
         return ResponseEntity.ok().build();
     }
 
@@ -178,9 +189,9 @@ public class UserController {
             @PathVariable("targetShortId") Long targetShortId,
             @AuthenticationPrincipal UserDetails principal
     ) {
-        UUID userUuid = UUID.fromString(principal.getUsername());
-        log.info("[Controller] DELETE /follow/{} — current UUID = {}", targetShortId, userUuid);
-        userService.unfollowByShortId(userUuid, targetShortId);
+        UUID currentUuid = UUID.fromString(principal.getUsername());
+        log.info("[Controller] DELETE /follow/{} — current UUID = {}", targetShortId, currentUuid);
+        userService.unfollowByShortId(currentUuid, targetShortId);
         return ResponseEntity.ok().build();
     }
 
@@ -191,8 +202,7 @@ public class UserController {
             Pageable pageable
     ) {
         log.info("[Controller] GET /{}/followers — shortId = {}", shortId, shortId);
-        Page<UserSummaryDto> page = userService.listFollowersByShortId(shortId, pageable);
-        return ResponseEntity.ok(page);
+        return ResponseEntity.ok(userService.listFollowersByShortId(shortId, pageable));
     }
 
     /** 获取指定 shortId 用户的关注列表 */
@@ -202,8 +212,6 @@ public class UserController {
             Pageable pageable
     ) {
         log.info("[Controller] GET /{}/following — shortId = {}", shortId, shortId);
-        Page<UserSummaryDto> page = userService.listFollowingByShortId(shortId, pageable);
-        return ResponseEntity.ok(page);
+        return ResponseEntity.ok(userService.listFollowingByShortId(shortId, pageable));
     }
-
 }

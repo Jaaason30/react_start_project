@@ -29,11 +29,10 @@ type RootStackParamList = {
 
 type NavType = NativeStackNavigationProp<RootStackParamList, 'EditProfile'>;
 
-// 定义相册项类型
 type AlbumItem = {
   uri: string;
   isNew: boolean;
-  originalUrl?: string; // 保存原始的相对URL，用于告诉后端要保留哪些
+  originalUrl?: string;
 };
 
 export default function EditProfileScreen() {
@@ -46,11 +45,8 @@ export default function EditProfileScreen() {
     bumpAvatarVersion,
   } = useUserProfile();
 
-  // 相册状态
   const [albumItems, setAlbumItems] = useState<AlbumItem[]>([]);
   const [deletedOriginalUrls, setDeletedOriginalUrls] = useState<string[]>([]);
-  
-  // 其他状态
   const [nickname, setNickname] = useState<string>('');
   const [bio, setBio] = useState<string>('');
   const [dateOfBirth, setDateOfBirth] = useState<string>('');
@@ -64,7 +60,6 @@ export default function EditProfileScreen() {
   const [albumChanged, setAlbumChanged] = useState<boolean>(false);
   const [isSaving, setIsSaving] = useState<boolean>(false);
 
-  // 初始化数据
   useEffect(() => {
     if (profileData) {
       setNickname(profileData.nickname || '');
@@ -72,15 +67,13 @@ export default function EditProfileScreen() {
       setDateOfBirth(profileData.dateOfBirth || '');
       setCity(profileData.city?.name || '');
       setGender(profileData.gender?.text || '');
-      setGenderPreferences(profileData.genderPreferences?.map((g) => g.text) || []);
+      setGenderPreferences(profileData.genderPreferences?.map(g => g.text) || []);
       setInterests(profileData.interests || []);
       setPreferredVenues(profileData.preferredVenues || []);
-      
-      // 初始化相册项
       const initialAlbumItems: AlbumItem[] = (profileData.albumUrls || []).map(url => ({
         uri: url.startsWith('http') ? url : FULL_BASE_URL + url,
         isNew: false,
-        originalUrl: url // 保存原始URL
+        originalUrl: url
       }));
       setAlbumItems(initialAlbumItems);
       setDeletedOriginalUrls([]);
@@ -97,7 +90,7 @@ export default function EditProfileScreen() {
   }
 
   const selectProfileImage = () => {
-    ImagePicker.launchImageLibrary({ mediaType: 'photo' }, (resp) => {
+    ImagePicker.launchImageLibrary({ mediaType: 'photo' }, resp => {
       const uri = resp.assets?.[0]?.uri;
       if (uri) {
         setLocalProfileUri(uri);
@@ -112,15 +105,13 @@ export default function EditProfileScreen() {
       Alert.alert('提示', '相册最多只能上传5张图片');
       return;
     }
-
     ImagePicker.launchImageLibrary(
       { mediaType: 'photo', selectionLimit: remainingSlots },
-      (resp) => {
-        const newItems = resp.assets?.map((asset) => ({
+      resp => {
+        const newItems = resp.assets?.map(asset => ({
           uri: asset.uri!,
           isNew: true
         })).filter((item): item is AlbumItem => Boolean(item.uri)) || [];
-        
         if (newItems.length) {
           setAlbumItems([...albumItems, ...newItems]);
           setAlbumChanged(true);
@@ -130,13 +121,10 @@ export default function EditProfileScreen() {
   };
 
   const removeAlbumItem = (index: number) => {
-    const itemToRemove = albumItems[index];
-    
-    // 如果删除的是原有图片，记录其URL
-    if (!itemToRemove.isNew && itemToRemove.originalUrl) {
-      setDeletedOriginalUrls([...deletedOriginalUrls, itemToRemove.originalUrl]);
+    const item = albumItems[index];
+    if (!item.isNew && item.originalUrl) {
+      setDeletedOriginalUrls([...deletedOriginalUrls, item.originalUrl]);
     }
-    
     const newItems = [...albumItems];
     newItems.splice(index, 1);
     setAlbumItems(newItems);
@@ -146,25 +134,20 @@ export default function EditProfileScreen() {
   const getVersionedUri = (base: string) => `${base}?v=${avatarVersion}`;
 
   const handleSave = async () => {
-    if (!profileData.uuid) {
-      Alert.alert('错误', '用户未登录');
-      return;
-    }
     setIsSaving(true);
-
     try {
       const payload: any = {};
 
-      // 基本信息更新（只发送有变化的字段）
+      // 字段变化
       if (nickname !== (profileData.nickname || '')) payload.nickname = nickname;
       if (bio !== (profileData.bio || '')) payload.bio = bio;
       if (dateOfBirth !== (profileData.dateOfBirth || '')) payload.dateOfBirth = dateOfBirth;
       if (city !== (profileData.city?.name || '')) payload.city = { name: city };
       if (gender !== (profileData.gender?.text || '')) payload.gender = { text: gender };
 
-      const origPrefs = profileData.genderPreferences?.map((g) => g.text) || [];
+      const origPrefs = profileData.genderPreferences?.map(g => g.text) || [];
       if (JSON.stringify(genderPreferences) !== JSON.stringify(origPrefs)) {
-        payload.genderPreferences = genderPreferences.map((t) => ({ text: t }));
+        payload.genderPreferences = genderPreferences.map(t => ({ text: t }));
       }
       if (JSON.stringify(interests) !== JSON.stringify(profileData.interests || [])) {
         payload.interests = interests;
@@ -177,7 +160,7 @@ export default function EditProfileScreen() {
       if (avatarChanged && localProfileUri && !localProfileUri.startsWith('http')) {
         const blob = await (await fetch(localProfileUri)).blob();
         payload.profileMime = blob.type;
-        payload.profileBase64 = await new Promise<string>((resolve) => {
+        payload.profileBase64 = await new Promise<string>(resolve => {
           const reader = new FileReader();
           reader.onloadend = () =>
             resolve((reader.result as string).split(',')[1]);
@@ -185,25 +168,21 @@ export default function EditProfileScreen() {
         });
       }
 
-      // 相册处理 - 新逻辑
+      // 相册处理
       if (albumChanged) {
-        // 1. 收集要保留的旧图片URL
         const keepUrls = albumItems
           .filter(item => !item.isNew && item.originalUrl)
           .map(item => item.originalUrl!);
-        
         payload.keepAlbumUrls = keepUrls;
-        
-        // 2. 只上传新图片
+
         const newImages = albumItems.filter(item => item.isNew);
         if (newImages.length > 0) {
           payload.albumMimeList = [];
           payload.albumBase64List = [];
-          
           for (const item of newImages) {
             const blob = await (await fetch(item.uri)).blob();
             payload.albumMimeList.push(blob.type);
-            const b64 = await new Promise<string>((resolve) => {
+            const b64 = await new Promise<string>(resolve => {
               const reader = new FileReader();
               reader.onloadend = () =>
                 resolve((reader.result as string).split(',')[1]);
@@ -212,18 +191,11 @@ export default function EditProfileScreen() {
             payload.albumBase64List.push(b64);
           }
         }
-        
-        console.log('[相册更新]', {
-          保留旧图片数: keepUrls.length,
-          新上传图片数: newImages.length,
-          保留的URLs: keepUrls
-        });
       }
 
-      // 只有有修改时才发送请求
       if (Object.keys(payload).length > 0) {
-        const endpoint = `${API_ENDPOINTS.USER_ME_UPDATE}?userUuid=${profileData.uuid}`;
-        const response = await apiClient.patch(endpoint, payload);
+        // 使用 /api/user/me PATCH，无需 uuid 参数
+        const response = await apiClient.patch(API_ENDPOINTS.USER_ME, payload);
         if (response.error) throw new Error(response.error);
 
         await refreshProfile();
@@ -247,22 +219,19 @@ export default function EditProfileScreen() {
   const profileSrc = localProfileUri
     ? localProfileUri
     : profileData.profilePictureUrl
-    ? getVersionedUri(FULL_BASE_URL + profileData.profilePictureUrl)
-    : undefined;
+      ? getVersionedUri(FULL_BASE_URL + profileData.profilePictureUrl)
+      : undefined;
 
   return (
     <ScrollView style={styles.container}>
+      {/* 顶部栏 */}
       <View style={styles.topBar}>
-        <TouchableOpacity
-          onPress={() => navigation.goBack()}
-          style={styles.backButton}
-        >
+        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
           <Ionicons name="chevron-back" size={24} color="#222" />
         </TouchableOpacity>
         <Text style={styles.topBarTitle}>编辑资料</Text>
         <View style={styles.backButton} />
       </View>
-
       <Text style={styles.label}>昵称</Text>
       <TextInput
         style={styles.input}

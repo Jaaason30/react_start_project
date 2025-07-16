@@ -1,6 +1,6 @@
-// src/main/java/com/zusa/backend/security/JwtUtils.java
 package com.zusa.backend.security;
 
+import com.zusa.backend.dto.auth.TokenClaims;
 import io.jsonwebtoken.*;
 import io.jsonwebtoken.security.Keys;
 import org.springframework.beans.factory.annotation.Value;
@@ -28,16 +28,15 @@ public class JwtUtils {
     }
 
     /**
-     * 生成 Access Token，将用户 UUID 作为 subject 存入 token
-     * 并在 claim 中添加 email
+     * 生成 Access Token，将 TokenClaims 中的用户 UUID 和 email 存入 token
      */
-    public String generateAccessToken(UUID userUuid, String email) {
+    public String generateAccessToken(TokenClaims claims) {
         Date now = new Date();
         Date expiry = new Date(now.getTime() + accessTokenExpiryMs);
 
         return Jwts.builder()
-                .setSubject(userUuid.toString())
-                .claim("email", email)
+                .setSubject(claims.getUserUuid().toString())
+                .claim("email", claims.getEmail())
                 .claim("type", "ACCESS")
                 .setIssuedAt(now)
                 .setExpiration(expiry)
@@ -46,7 +45,7 @@ public class JwtUtils {
     }
 
     /**
-     * 生成 Refresh Token，将用户 UUID 作为 subject
+     * 生成 Refresh Token，仅将用户 UUID 作为 subject 存入 token
      */
     public String generateRefreshToken(UUID userUuid) {
         Date now = new Date();
@@ -77,8 +76,9 @@ public class JwtUtils {
      * 获取 JwtParser（兼容 io.jsonwebtoken 0.9.x）
      */
     private JwtParser getParser() {
-        return Jwts.parser()
-                .setSigningKey(getSigningKey());
+        return Jwts.parserBuilder()
+                .setSigningKey(getSigningKey())
+                .build();
     }
 
     /**

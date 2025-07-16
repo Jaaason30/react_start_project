@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import React, { useState } from 'react';
 import { Alert } from 'react-native';
 import { apiClient } from '../../../services/apiClient';
 import { API_ENDPOINTS, BASE_URL } from '../../../constants/api';
@@ -15,16 +15,19 @@ export const useCommentActions = (
   const [showCommentModal, setShowCommentModal] = useState(false);
   const [replyingTo, setReplyingTo] = useState<ReplyingToType | null>(null);
 
+  /** 开始回复 */
   const handleReply = (comment: CommentType) => {
     setReplyingTo({
       commentId: comment.id,
-      userName: comment.user,
-      parentCommentUuid: comment.parentCommentUuid || comment.id,
-      replyToUserUuid: comment.authorUuid,
+      userName: comment.author.nickname,
+      parentCommentUuid: comment.parentCommentUuid ?? comment.id,
+      // 使用 shortId 作为回复目标用户标识
+      replyToUserShortId: comment.author.shortId,
     });
     setShowCommentModal(true);
   };
 
+  /** 删除评论 */
   const handleDeleteComment = (id: string) => {
     Alert.alert('确认删除', '确定要删除这条评论吗？', [
       { text: '取消', style: 'cancel' },
@@ -34,7 +37,7 @@ export const useCommentActions = (
         onPress: async () => {
           try {
             await apiClient.delete(
-              `${API_ENDPOINTS.COMMENT_DELETE.replace(':id', id)}`
+              API_ENDPOINTS.COMMENT_DELETE.replace(':id', id)
             );
             setComments(prev => prev.filter(c => c.id !== id));
             setPost(prev =>
@@ -48,33 +51,44 @@ export const useCommentActions = (
     ]);
   };
 
+  /** 提交评论或回复 */
   const submitComment = async () => {
     if (!commentText.trim()) return;
-    const payload = {
+    const payload: any = {
       content: commentText.trim(),
       parentCommentUuid: replyingTo?.parentCommentUuid,
-      replyToUserUuid: replyingTo?.replyToUserUuid,
+      replyToUserShortId: replyingTo?.replyToUserShortId,
     };
     try {
       const { data } = await apiClient.post<any>(
-        `${API_ENDPOINTS.POST_COMMENTS.replace(':uuid', postUuid)}`,
+        API_ENDPOINTS.POST_COMMENTS.replace(':uuid', postUuid),
         payload
       );
 
       const newComment: CommentType = {
         id: data.uuid,
-        authorUuid: data.author.uuid,
-        user: data.author.nickname,
-        avatar: data.author.profilePictureUrl
-          ? `${BASE_URL}${data.author.profilePictureUrl}`
-          : 'https://via.placeholder.com/100x100.png?text=No+Avatar',
+        author: {
+          shortId: data.author.shortId,
+          nickname: data.author.nickname,
+          profilePictureUrl: data.author.profilePictureUrl
+            ? `${BASE_URL}${data.author.profilePictureUrl}`
+            : undefined,
+        },
         content: data.content,
         time: new Date(data.createdAt).toLocaleString(),
         likes: 0,
         liked: false,
         replyCount: 0,
-        parentCommentUuid: data.parentCommentUuid,
-        replyToUser: data.replyToUser,
+        parentCommentUuid: data.parentCommentUuid ?? undefined,
+        replyToUser: data.replyToUser
+          ? {
+              shortId: data.replyToUser.shortId,
+              nickname: data.replyToUser.nickname,
+              profilePictureUrl: data.replyToUser.profilePictureUrl
+                ? `${BASE_URL}${data.replyToUser.profilePictureUrl}`
+                : undefined,
+            }
+          : undefined,
       };
 
       if (replyingTo) {
@@ -105,60 +119,52 @@ export const useCommentActions = (
     }
   };
 
-const toggleCommentLike = async (commentId: string) => {
-  try {
-    const { data: upd, error } = await apiClient.post<{
-      likeCount: number;
-      likedByCurrentUser: boolean;
-    }>(API_ENDPOINTS.COMMENT_LIKES.replace(':id', commentId));
+  /** 切换点赞评论 */
+  const toggleCommentLike = async (commentId: string) => {
+    try {
+      const { data: upd } = await apiClient.post<{
+        likeCount: number;
+        likedByCurrentUser: boolean;
+      }>(
+        API_ENDPOINTS.COMMENT_LIKES.replace(':id', commentId)
+      );
 
-    if (error || !upd) {
-      console.warn('[toggleCommentLike] Failed response:', error);
-      return;
+      if (!upd) return;
+      setComments(prev =>
+        prev.map(c =>
+          c.id === commentId
+            ? { ...c, likes: upd.likeCount, liked: upd.likedByCurrentUser }
+            : c
+        )
+      );
+    } catch (e) {
+      Alert.alert('提示', '点赞失败，请稍后再试');
     }
+  };
 
-    console.log(
-      `[toggleCommentLike] id=${commentId}, liked=${upd.likedByCurrentUser}, count=${upd.likeCount}`
-    );
-
-    setComments(prev =>
-      prev.map(c =>
-        c.id === commentId
-          ? {
-              ...c,
-              likes: upd.likeCount,
-              liked: upd.likedByCurrentUser,
-            }
-          : c
-      )
-    );
-  } catch (e) {
-    console.error('[toggleCommentLike] 网络错误:', e);
-    Alert.alert('提示', '点赞失败，请稍后再试');
-  }
-};
-
+  /** 切换点赞回复 */
   const toggleReplyLike = async (replyId: string) => {
     try {
-      const { data: upd } = await apiClient.post<any>(
-        `${API_ENDPOINTS.COMMENT_LIKES.replace(':id', replyId)}`
+      const { data: upd } = await apiClient.post<{
+        likeCount: number;
+        likedByCurrentUser: boolean;
+      }>(
+        API_ENDPOINTS.COMMENT_LIKES.replace(':id', replyId)
       );
+
+      if (!upd) return;
       setComments(prev =>
         prev.map(c => ({
           ...c,
           replies: c.replies?.map(r =>
             r.id === replyId
-              ? {
-                  ...r,
-                  likes: upd.likeCount,
-                  liked: upd.likedByCurrentUser,
-                }
+              ? { ...r, likes: upd.likeCount, liked: upd.likedByCurrentUser }
               : r
           ),
         }))
       );
-    } catch (e) {
-      // Error handling
+    } catch {
+      // noop
     }
   };
 

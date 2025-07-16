@@ -14,9 +14,9 @@ export interface TagDto {
 
 /** 对应后端的 AuthorSummaryDto */
 export interface AuthorSummaryDto {
-  uuid: string;
-  nickname: string;
+  /** 使用 shortId 作为用户标识，不再包含 uuid */
   shortId: number;
+  nickname: string;
   profilePictureUrl: string | null;
 }
 

@@ -1,6 +1,6 @@
-// src/main/java/com/zusa/backend/dto/user/UserDto.java
 package com.zusa.backend.dto.user;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import lombok.Data;
 
 import java.time.LocalDate;
@@ -9,9 +9,12 @@ import java.util.UUID;
 
 @Data
 public class UserDto {
-    /* ------- 短 ID & UUID ------- */
-    private Long shortId;
+    /* ------- UUID（内部使用，不暴露给前端） ------- */
+    @JsonIgnore
     private UUID uuid;
+
+    /* ------- 短 ID ------- */
+    private Long shortId;
 
     /* ------- 基本信息 ------- */
     private String email;

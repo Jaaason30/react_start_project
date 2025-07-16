@@ -1,3 +1,5 @@
+// src/screens/Post/PostDetailScreen.tsx
+
 import React, { useRef, useState } from 'react';
 import {
   View,
@@ -30,18 +32,21 @@ import { checkTokenStatus } from '../../services/apiClient';
 
 // Types
 import { CommentType } from './types';
+
 console.log('[PostDetailScreen] Token Status →', checkTokenStatus());
+
 type RootStackParamList = {
   PostDetail: { post: { uuid: string } };
 };
 type PostDetailRouteProp = RouteProp<RootStackParamList, 'PostDetail'>;
 
 export default function PostDetailScreen() {
+  
   const navigation = useNavigation();
   const route = useRoute<PostDetailRouteProp>();
   const { post: initialPost } = route.params;
   const { refreshProfile } = useUserProfile();
-  
+console.log('[PostDetailScreen] route params →', initialPost);
   const listRef = useRef<FlatList<CommentType>>(null);
   const [commentY, setCommentY] = useState(0);
   const [refreshing, setRefreshing] = useState(false);
@@ -59,7 +64,7 @@ export default function PostDetailScreen() {
     setIsFollowing,
     fetchPostDetail,
     deletePost,
-    currentUserUuid,
+    currentUserShortId,    // ← 改名
   } = usePostDetail(initialPost.uuid);
 
   const {
@@ -76,13 +81,16 @@ export default function PostDetailScreen() {
     loadMore,
   } = useComments(initialPost.uuid);
 
+  // 现在传入 isLiked + setIsLiked 和 isCollected + setIsCollected
   const { toggleFollow, toggleReaction } = usePostActions(
     initialPost.uuid,
     post,
     setPost,
     isFollowing,
     setIsFollowing,
+    isLiked,
     setIsLiked,
+    isCollected,
     setIsCollected
   );
 
@@ -164,7 +172,7 @@ export default function PostDetailScreen() {
             <PostHeader
               post={post}
               isFollowing={isFollowing}
-              currentUserUuid={currentUserUuid}
+              currentUserShortId={currentUserShortId} // ← 改名
               onFollow={toggleFollow}
               onDelete={handleDeletePost}
             />
@@ -177,11 +185,11 @@ export default function PostDetailScreen() {
           </>
         }
         data={comments}
-        keyExtractor={item => item.id}
+        keyExtractor={(item) => item.id}
         renderItem={({ item }) => (
           <CommentItem
             comment={item}
-            currentUserUuid={currentUserUuid}
+            currentUserShortId={currentUserShortId} // ← 改名
             showReplies={showReplies.has(item.id)}
             loadingReplies={loadingReplies.has(item.id)}
             onLike={() => toggleCommentLike(item.id)}
@@ -189,7 +197,7 @@ export default function PostDetailScreen() {
             onDelete={() => handleDeleteComment(item.id)}
             onToggleReplies={() => {
               if (showReplies.has(item.id)) {
-                setShowReplies(prev => {
+                setShowReplies((prev) => {
                   const newSet = new Set(prev);
                   newSet.delete(item.id);
                   return newSet;
@@ -209,7 +217,7 @@ export default function PostDetailScreen() {
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
         }
       />
-      
+
       <ActionBar
         post={post}
         isLiked={isLiked}

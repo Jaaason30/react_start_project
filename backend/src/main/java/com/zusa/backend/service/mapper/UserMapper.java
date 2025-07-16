@@ -1,18 +1,16 @@
-// src/main/java/com/zusa/backend/service/mapper/UserMapper.java
 package com.zusa.backend.service.mapper;
 
 import com.zusa.backend.dto.user.*;
 import com.zusa.backend.entity.User;
-import com.zusa.backend.entity.user.Gender;
 import org.mapstruct.*;
 import java.util.List;
-import java.util.stream.Collectors;
 
 @Mapper(componentModel = "spring")
 public interface UserMapper {
 
     /** 完整映射 User → UserDto */
     @Mapping(target = "shortId", source = "shortId")
+    // Removed mapping for uuid since UserDto does not have a uuid property
     @Mapping(target = "profilePictureUrl",
             expression = "java(user.getProfilePicture() != null ? \"/api/media/profile/\" + user.getProfilePicture().getUuid() : null)")
     @Mapping(target = "albumUrls",
@@ -25,9 +23,10 @@ public interface UserMapper {
     @Mapping(target = "city", ignore = true)
     @Mapping(target = "gender", ignore = true)
     @Mapping(target = "genderPreferences", ignore = true)
-    @Mapping(target = "followerCount", expression = "java(user.getFollowers() != null ? user.getFollowers().size() : 0)")
-    @Mapping(target = "followingCount", expression = "java(user.getFollowing() != null ? user.getFollowing().size() : 0)")
-
+    @Mapping(target = "followerCount",
+            expression = "java(user.getFollowers() != null ? user.getFollowers().size() : 0)")
+    @Mapping(target = "followingCount",
+            expression = "java(user.getFollowing() != null ? user.getFollowing().size() : 0)")
     UserDto toDto(User user);
 
     @AfterMapping
@@ -59,6 +58,7 @@ public interface UserMapper {
 
     /** 简化映射 User → UserSummaryDto */
     @Mapping(target = "shortId", source = "shortId")
+    // Removed mapping for uuid here as well
     @Mapping(target = "profilePictureUrl",
             expression = "java(user.getProfilePicture() != null ? \"/api/media/profile/\" + user.getProfilePicture().getUuid() : null)")
     UserSummaryDto toSummaryDto(User user);

@@ -11,7 +11,8 @@ import { useUserProfile } from '../../../contexts/UserProfileContext';
 
 export interface CommentItemProps {
   comment: CommentType;
-  currentUserUuid?: string;
+  /** 当前用户的 shortId，可选 */
+  currentUserShortId?: number;
   showReplies: boolean;
   loadingReplies: boolean;
   onLike: () => void;
@@ -23,38 +24,47 @@ export interface CommentItemProps {
   onDeleteReply: (replyId: string) => void;
 }
 
-export const CommentItem: React.FC<CommentItemProps> = (props) => {
+export const CommentItem: React.FC<CommentItemProps> = ({
+  comment,
+  currentUserShortId,
+  showReplies,
+  loadingReplies,
+  onLike,
+  onReply,
+  onDelete,
+  onToggleReplies,
+  onReplyLike,
+  onReplyToReply,
+  onDeleteReply,
+}) => {
+  // 调试输出
+  console.log('[CommentItem] comment →', comment);
+
   const { profileData } = useUserProfile();
-  const ctxUuid = profileData?.uuid;
+  const ctxShortId = profileData?.shortId;
+  const meShortId = currentUserShortId ?? ctxShortId;
 
-  // ✅ 使用 props 中传入的 UUID，否则 fallback 到 context
-  const currentUserUuid = props.currentUserUuid ?? ctxUuid;
+  // 如果 author 未定义，兜底一个空对象
+  const author = comment.author || {
+    shortId: 0,
+    nickname: '匿名',
+    profilePictureUrl: undefined,
+  };
 
-  // —— 在这里打印 currentUserUuid
-  console.log('[CommentItem] currentUserUuid =', currentUserUuid);
-
-  const {
-    comment,
-    showReplies,
-    loadingReplies,
-    onLike,
-    onReply,
-    onDelete,
-    onToggleReplies,
-    onReplyLike,
-    onReplyToReply,
-    onDeleteReply,
-  } = props;
-
-  console.log(
-    `[CommentItem] id=${comment.id}, liked=${comment.liked}, likes=${comment.likes}, content="${comment.content}"`
-  );
+  // 如果 replyToUser 未定义，兜底一个空对象
+  const replyTo = comment.replyToUser || {
+    shortId: 0,
+    nickname: '',
+    profilePictureUrl: undefined,
+  };
 
   return (
     <View style={styles.commentItem}>
       <FastImage
         source={{
-          uri: comment.avatar,
+          uri:
+            author.profilePictureUrl ||
+            'https://via.placeholder.com/100x100.png?text=No+Avatar',
           headers: { 'Cache-Control': 'no-cache' },
           priority: FastImage.priority.normal,
         }}
@@ -64,7 +74,7 @@ export const CommentItem: React.FC<CommentItemProps> = (props) => {
 
       <View style={{ flex: 1, marginLeft: 8 }}>
         <View style={styles.commentTopRow}>
-          <Text style={styles.commentUser}>{comment.user}</Text>
+          <Text style={styles.commentUser}>{author.nickname}</Text>
           <View style={styles.commentActions}>
             <TouchableOpacity style={styles.likeButton} onPress={onLike}>
               <Ionicons
@@ -86,7 +96,7 @@ export const CommentItem: React.FC<CommentItemProps> = (props) => {
               <Ionicons name="chatbubble-outline" size={16} color="#888" />
             </TouchableOpacity>
 
-            {currentUserUuid === comment.authorUuid && (
+            {meShortId === author.shortId && (
               <TouchableOpacity onPress={onDelete} style={{ marginLeft: 16 }}>
                 <Ionicons name="trash-outline" size={16} color="#888" />
               </TouchableOpacity>
@@ -96,7 +106,7 @@ export const CommentItem: React.FC<CommentItemProps> = (props) => {
 
         {comment.replyToUser && (
           <Text style={styles.replyToText}>
-            回复 @{comment.replyToUser.nickname}
+            回复 @{replyTo.nickname}
           </Text>
         )}
 
@@ -119,11 +129,11 @@ export const CommentItem: React.FC<CommentItemProps> = (props) => {
         )}
 
         {showReplies &&
-          comment.replies?.map((reply) => (
+          comment.replies?.map(reply => (
             <ReplyItem
               key={reply.id}
               reply={reply}
-              currentUserUuid={currentUserUuid}
+              currentUserShortId={meShortId}
               onLike={() => onReplyLike(reply.id)}
               onReply={() => onReplyToReply(reply)}
               onDelete={() => onDeleteReply(reply.id)}

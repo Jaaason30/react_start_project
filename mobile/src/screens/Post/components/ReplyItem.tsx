@@ -1,13 +1,16 @@
+// src/screens/Post/components/ReplyItem.tsx
+
 import React from 'react';
 import { View, Text, TouchableOpacity } from 'react-native';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import FastImage from 'react-native-fast-image';
 import { styles } from '../../../theme/PostDetailScreen.styles';
 import { CommentType } from '../types';
+import { useUserProfile } from '../../../contexts/UserProfileContext';
 
 interface ReplyItemProps {
   reply: CommentType;
-  currentUserUuid?: string;
+  currentUserShortId?: number;
   onLike: () => void;
   onReply: () => void;
   onDelete: () => void;
@@ -15,26 +18,22 @@ interface ReplyItemProps {
 
 export const ReplyItem: React.FC<ReplyItemProps> = ({
   reply,
-  currentUserUuid,
+  currentUserShortId,
   onLike,
   onReply,
   onDelete,
 }) => {
-  // ✅ 更健壮的身份判断：不区分大小写
-  const isAuthor =
-    currentUserUuid?.toLowerCase?.() === reply.authorUuid?.toLowerCase?.();
-
-  console.log('[🔍 ReplyItem UUID CHECK]', {
-    currentUserUuid,
-    authorUuid: reply.authorUuid,
-    isAuthor,
-  });
+  const { profileData } = useUserProfile();
+  const meShortId = currentUserShortId ?? profileData?.shortId;
+  const isAuthor = meShortId === reply.author.shortId;
 
   return (
     <View style={[styles.commentItem, styles.replyItem]}>
       <FastImage
         source={{
-          uri: reply.avatar,
+          uri:
+            reply.author.profilePictureUrl ||
+            'https://via.placeholder.com/100x100.png?text=No+Avatar',
           headers: { 'Cache-Control': 'no-cache' },
           priority: FastImage.priority.normal,
         }}
@@ -43,9 +42,7 @@ export const ReplyItem: React.FC<ReplyItemProps> = ({
       />
       <View style={{ flex: 1, marginLeft: 8 }}>
         <View style={styles.commentTopRow}>
-          <Text style={styles.commentUser}>
-            {reply.user}
-          </Text>
+          <Text style={styles.commentUser}>{reply.author.nickname}</Text>
           {reply.replyToUser && (
             <Text style={styles.replyToInline}>
               回复 @{reply.replyToUser.nickname}
@@ -69,11 +66,7 @@ export const ReplyItem: React.FC<ReplyItemProps> = ({
             </TouchableOpacity>
 
             <TouchableOpacity onPress={onReply} style={{ marginLeft: 12 }}>
-              <Ionicons
-                name="chatbubble-outline"
-                size={14}
-                color="#888"
-              />
+              <Ionicons name="chatbubble-outline" size={14} color="#888" />
             </TouchableOpacity>
 
             {isAuthor && (
@@ -83,13 +76,12 @@ export const ReplyItem: React.FC<ReplyItemProps> = ({
             )}
           </View>
         </View>
-        <Text style={styles.replyContent}>
-          {reply.content}
-        </Text>
-        <Text style={styles.replyTime}>
-          {reply.time}
-        </Text>
+
+        <Text style={styles.replyContent}>{reply.content}</Text>
+        <Text style={styles.replyTime}>{reply.time}</Text>
       </View>
     </View>
   );
 };
+
+export default ReplyItem;

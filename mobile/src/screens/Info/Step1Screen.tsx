@@ -1,4 +1,6 @@
-import React, { useEffect } from 'react';
+// src/screens/Step1Screen.tsx
+
+import React from 'react';
 import {
   View,
   Text,
@@ -12,43 +14,83 @@ import { styles } from '../../theme/Step1Screen.styles';
 import { useUserProfile } from '../../contexts/UserProfileContext';
 
 const GENDER_OPTIONS = [
-  { id: 1, label: '男' },
-  { id: 2, label: '女' },
+  { label: '男' },
+  { label: '女' },
 ];
 
 const INTEREST_TAGS = [
-  { id: 1, label: '喝酒' },
-  { id: 2, label: '桌球' },
-  { id: 3, label: '安静聊天' },
-  { id: 4, label: 'Live音乐' },
-  { id: 5, label: '派对舞池' },
-  { id: 6, label: '认证博主' },
-  { id: 7, label: 'Techno' },
-  { id: 8, label: 'EDM' },
-  { id: 9, label: 'Hip-Hop' },
-  { id: 10, label: 'R&B' },
+  { label: '喝酒' },
+  { label: '桌球' },
+  { label: '安静聊天' },
+  { label: 'Live音乐' },
+  { label: '派对舞池' },
+  { label: '认证博主' },
+  { label: 'Techno' },
+  { label: 'EDM' },
+  { label: 'Hip-Hop' },
+  { label: 'R&B' },
 ];
 
 const VENUE_TAGS = [
-  { id: 1, name: 'Homebar', emoji: '🏠' },
-  { id: 2, name: '夜店', emoji: '🕺' },
-  { id: 3, name: 'Rooftop Bar', emoji: '🌇' },
-  { id: 4, name: 'Livehouse', emoji: '🎵' },
+  { name: 'Homebar', emoji: '🏠' },
+  { name: '夜店', emoji: '🕺' },
+  { name: 'Rooftop Bar', emoji: '🌇' },
+  { name: 'Livehouse', emoji: '🎵' },
 ];
 
 export default function Step1Screen() {
   const navigation = useNavigation<any>();
   const { profileData, setProfileData } = useUserProfile();
-  const gender = profileData.genderId;
-  const genderPref = profileData.genderPreferenceIds ?? [];
-  const interestIds = profileData.interestIds ?? [];
-  const venueIds = profileData.venueIds ?? [];
 
-  const canProceed = gender && genderPref.length > 0 && interestIds.length > 0;
+  // 与 PartialUserDto 对齐的字段
+  const selectedGender = profileData?.gender?.text;
+  const selectedGenderPrefs = profileData?.genderPreferences?.map(g => g.text) ?? [];
+  const selectedInterests = profileData?.interests ?? [];
+  const selectedVenues = profileData?.preferredVenues ?? [];
 
-  const toggleList = (arr: number[], id: number, key: keyof typeof profileData) => {
-    const updated = arr.includes(id) ? arr.filter(i => i !== id) : [...arr, id];
-    setProfileData(prev => ({ ...prev, [key]: updated }));
+  const canProceed =
+    !!selectedGender &&
+    selectedGenderPrefs.length > 0 &&
+    selectedInterests.length > 0;
+
+  const handleGenderSelect = (label: string) => {
+    setProfileData(prev => ({
+      ...prev!,
+      gender: { text: label },
+    }));
+  };
+
+  const togglePreference = (label: string) => {
+    setProfileData(prev => {
+      const current = prev?.genderPreferences?.map(g => g.text) ?? [];
+      const updated = current.includes(label)
+        ? current.filter(t => t !== label)
+        : [...current, label];
+      return {
+        ...prev!,
+        genderPreferences: updated.map(t => ({ text: t })),
+      };
+    });
+  };
+
+  const toggleInterest = (label: string) => {
+    setProfileData(prev => {
+      const current = prev?.interests ?? [];
+      const updated = current.includes(label)
+        ? current.filter(t => t !== label)
+        : [...current, label];
+      return { ...prev!, interests: updated };
+    });
+  };
+
+  const toggleVenue = (name: string) => {
+    setProfileData(prev => {
+      const current = prev?.preferredVenues ?? [];
+      const updated = current.includes(name)
+        ? current.filter(n => n !== name)
+        : [...current, name];
+      return { ...prev!, preferredVenues: updated };
+    });
   };
 
   return (
@@ -73,14 +115,12 @@ export default function Step1Screen() {
         <View style={styles.row}>
           {GENDER_OPTIONS.map(opt => (
             <TouchableOpacity
-              key={opt.id}
+              key={opt.label}
               style={[
                 styles.choiceBox,
-                gender === opt.id && styles.choiceBoxSelected,
+                selectedGender === opt.label && styles.choiceBoxSelected,
               ]}
-              onPress={() =>
-                setProfileData(prev => ({ ...prev, genderId: opt.id }))
-              }
+              onPress={() => handleGenderSelect(opt.label)}
             >
               <Text style={styles.choiceText}>{opt.label}</Text>
             </TouchableOpacity>
@@ -92,12 +132,12 @@ export default function Step1Screen() {
         <View style={styles.row}>
           {GENDER_OPTIONS.map(opt => (
             <TouchableOpacity
-              key={opt.id}
+              key={opt.label}
               style={[
                 styles.choiceBox,
-                genderPref.includes(opt.id) && styles.choiceBoxSelected,
+                selectedGenderPrefs.includes(opt.label) && styles.choiceBoxSelected,
               ]}
-              onPress={() => toggleList(genderPref, opt.id, 'genderPreferenceIds')}
+              onPress={() => togglePreference(opt.label)}
             >
               <Text style={styles.choiceText}>{opt.label}</Text>
             </TouchableOpacity>
@@ -109,9 +149,9 @@ export default function Step1Screen() {
         <View style={styles.wrap}>
           {INTEREST_TAGS.map(tag => (
             <TouchableOpacity
-              key={tag.id}
-              style={[styles.tag, interestIds.includes(tag.id) && styles.tagSelected]}
-              onPress={() => toggleList(interestIds, tag.id, 'interestIds')}
+              key={tag.label}
+              style={[styles.tag, selectedInterests.includes(tag.label) && styles.tagSelected]}
+              onPress={() => toggleInterest(tag.label)}
             >
               <Text style={styles.tagText}>{tag.label}</Text>
             </TouchableOpacity>
@@ -121,14 +161,14 @@ export default function Step1Screen() {
         {/* 偏好场所 */}
         <Text style={styles.title}>偏好场所</Text>
         <View style={styles.wrap}>
-          {VENUE_TAGS.map(({ id, name, emoji }) => (
+          {VENUE_TAGS.map(({ name, emoji }) => (
             <TouchableOpacity
-              key={id}
+              key={name}
               style={[
                 styles.venueCard,
-                venueIds.includes(id) && styles.venueCardSelected,
+                selectedVenues.includes(name) && styles.venueCardSelected,
               ]}
-              onPress={() => toggleList(venueIds, id, 'venueIds')}
+              onPress={() => toggleVenue(name)}
             >
               <Text style={styles.venueEmoji}>{emoji}</Text>
               <Text style={styles.venueText}>{name}</Text>
@@ -141,18 +181,7 @@ export default function Step1Screen() {
       <TouchableOpacity
         style={[styles.nextButton, !canProceed && styles.disabledButton]}
         disabled={!canProceed}
-        onPress={() => {
-          const { profileBase64, albumBase64List, ...rest } = profileData;
-
-          console.log("🧾 Step1Screen 当前 profileData:", {
-            ...rest,
-            profileBase64Length: profileBase64?.length ?? 0,
-            albumBase64ListCount: albumBase64List?.length ?? 0,
-          });
-
-          navigation.navigate('Step2Screen');
-        }}
-
+        onPress={() => navigation.navigate('Step2Screen')}
       >
         <Text style={styles.nextText}>下一步</Text>
         <Ionicons name="chevron-forward" size={20} color="#fff" />

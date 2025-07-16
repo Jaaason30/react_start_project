@@ -8,8 +8,6 @@ import {
   StatusBar,
   FlatList,
   ActivityIndicator,
-  Platform,
-  StyleSheet,
   RefreshControl,
 } from 'react-native';
 import Ionicons from 'react-native-vector-icons/Ionicons';
@@ -19,11 +17,12 @@ import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { styles } from '../../theme/DiscoverScreen.styles';
 import { apiClient } from '../../services/apiClient';
 import { API_ENDPOINTS } from '../../constants/api';
+import { patchUrl, patchProfileUrl } from '../Post/utils/urlHelpers';
+import { useUserProfile } from '../../contexts/UserProfileContext';
+import { PostType } from '../Post/types';
 import { DiscoverBanner } from './components/DiscoverBanner';
 
-const HOST = Platform.OS === 'android' ? '10.0.2.2' : 'localhost';
-const BASE_URL = `http://${HOST}:8080`;
-
+// Navigation types
 export type RootStackParamList = {
   Login: undefined;
   Register: undefined;
@@ -32,15 +31,14 @@ export type RootStackParamList = {
   SeatPage: { seatId: string };
   Discover: undefined;
   Search: undefined;
-  PlayerProfile: { userId?: string };  // 暂时保持原来的 userId
+  PlayerProfile: { userId?: string };
   PostCreation: undefined;
-  PostDetail: { post: any };
+  PostDetail: { post: PostType };
 };
 
 type DiscoverNav = NativeStackNavigationProp<RootStackParamList, 'Discover'>;
 
 const TOP_TABS = ['关注', '推荐'] as const;
-
 const BOTTOM_TABS = [
   { key: 'heart', label: '心动', icon: 'heart-outline', screen: 'Dashboard' },
   { key: 'chat', label: '聊天', icon: 'chatbubbles-outline', screen: 'SeatOverview' },
@@ -51,22 +49,69 @@ const BOTTOM_TABS = [
 
 export default function DiscoverScreen() {
   const navigation = useNavigation<DiscoverNav>();
+  const { avatarVersion } = useUserProfile();
   const [activeTopTab, setActiveTopTab] = useState<typeof TOP_TABS[number]>('推荐');
   const [activeBottom, setActiveBottom] = useState<typeof BOTTOM_TABS[number]['key']>('square');
-  const [posts, setPosts] = useState<any[]>([]);
+  const [posts, setPosts] = useState<PostType[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const listRef = useRef<FlatList<any>>(null);
+  const listRef = useRef<FlatList<PostType>>(null);
 
-  const fetchPosts = useCallback(async () => {
-    const res = await apiClient.get<{ content: any[] }>(`${API_ENDPOINTS.POSTS_FEED}?page=0&size=20`);
-    if (res.error) {
-      console.error('[fetchPosts] error:', res.error);
-      return;
+  /** 拉取帖子列表并标准化为 PostType */
+const fetchPosts = useCallback(async () => {
+  const res = await apiClient.get<{ content: any[] }>(
+    `${API_ENDPOINTS.POSTS_FEED}?page=0&size=20`
+  );
+  if (res.error) {
+    console.error('[fetchPosts] error:', res.error);
+    setPosts([]);
+    return;
+  }
+
+  const rawItems = res.data?.content ?? [];
+  //console.log('[fetchPosts] rawItems →', rawItems); // 👉 先打印出来确认字段名
+
+  const standardized: PostType[] = rawItems.map(item => {
+    // 1. 优先取 coverUrl
+    let cover = item.coverUrl 
+      ? patchUrl(item.coverUrl) 
+      : item.coverImageUrl 
+        ? patchUrl(item.coverImageUrl) 
+        : '';
+
+    // 2. 如果还没拿到，再试试 images 数组
+    if (!cover && Array.isArray(item.images) && item.images.length) {
+      // 注意：这里 item.images 可能是字符串数组，也可能是对象数组
+      const first = item.images[0];
+      if (typeof first === 'string') {
+        cover = patchUrl(first);
+      } else if (first.url) {
+        cover = patchUrl(first.url);
+      }
     }
-    // safely handle possible null data
-    setPosts(res.data?.content ?? []);
-  }, []);
+
+    return {
+      uuid: item.uuid,
+      title: item.title,
+      content: item.content,
+      images: cover ? [cover] : [],
+      author: {
+        shortId: item.author.shortId,
+        nickname: item.author.nickname,
+        profilePictureUrl:
+          patchProfileUrl(item.author.profilePictureUrl, avatarVersion),
+      },
+      likeCount: item.likeCount ?? 0,
+      collectCount: item.collectCount ?? 0,
+      commentCount: item.commentCount ?? 0,
+      likedByCurrentUser: !!item.likedByCurrentUser,
+      collectedByCurrentUser: !!item.collectedByCurrentUser,
+      followedByCurrentUser: !!item.followedByCurrentUser,
+    };
+  });
+
+  setPosts(standardized);
+}, [avatarVersion]);
 
   const loadInitial = useCallback(async () => {
     setLoading(true);
@@ -84,48 +129,24 @@ export default function DiscoverScreen() {
     setRefreshing(false);
   }, [fetchPosts]);
 
-  const getCoverUrl = (item: any): string => {
-    if (item.coverUrl) {
-      return item.coverUrl.startsWith('http') ? item.coverUrl : `${BASE_URL}${item.coverUrl}`;
-    }
-    if (item.coverImageUrl) {
-      return item.coverImageUrl.startsWith('http')
-        ? item.coverImageUrl
-        : `${BASE_URL}${item.coverImageUrl}`;
-    }
-    if (Array.isArray(item.images) && item.images.length) {
-      const first = item.images[0];
-      if (first.url) return first.url.startsWith('http') ? first.url : `${BASE_URL}${first.url}`;
-      if (first.path) return `${BASE_URL}${first.path}`;
-      if (first.uuid) return `${BASE_URL}/api/media/photo/${first.uuid}`;
-    }
-    return 'https://via.placeholder.com/400x600';
-  };
+  /** 渲染每张卡片 */
+  const PostCard: React.FC<{ item: PostType }> = ({ item }) => {
+    const [uri, setUri] = useState(item.images[0] || 'https://via.placeholder.com/400x600');
+    useEffect(() => {
+      setUri(item.images[0] || 'https://via.placeholder.com/400x600');
+    }, [item.images]);
 
-  const PostCard: React.FC<{ item: any }> = ({ item }) => {
-    const [uri, setUri] = useState(getCoverUrl(item));
-    useEffect(() => setUri(getCoverUrl(item)), [item]);
+    const avatarUri = item.author.profilePictureUrl || '';
 
-    const author = item.author;
-    const avatarUri = author?.profilePictureUrl
-      ? author.profilePictureUrl.startsWith('http')
-        ? author.profilePictureUrl
-        : `${BASE_URL}${author.profilePictureUrl}`
-      : 'https://via.placeholder.com/16';
-
-    // 处理作者点击事件
     const handleAuthorPress = () => {
-      // 暂时保持原来的逻辑，稍后再修改
-      if (author?.uuid) {
-        navigation.navigate('PlayerProfile', { userId: author.uuid });
-      }
+      navigation.navigate('PlayerProfile', { userId: String(item.author.shortId) });
     };
 
     return (
       <TouchableOpacity
         style={styles.card}
         activeOpacity={0.8}
-        onPress={() => navigation.navigate('PostDetail', { post: { ...item, coverUrl: uri } })}
+        onPress={() => navigation.navigate('PostDetail', { post: item })}
       >
         <FastImage
           source={{ uri }}
@@ -134,20 +155,20 @@ export default function DiscoverScreen() {
           onError={() => setUri('https://via.placeholder.com/400x600')}
         />
         <Text style={styles.cardTitle} numberOfLines={2}>
-          {item.title ?? '（无标题）'}
+          {item.title || '（无标题）'}
         </Text>
         <View style={styles.cardFooter}>
-          <TouchableOpacity 
+          <TouchableOpacity
             style={styles.authorContainer}
             onPress={handleAuthorPress}
             activeOpacity={0.7}
           >
             <FastImage source={{ uri: avatarUri }} style={styles.authorAvatar} />
-            <Text style={styles.author}>{author?.nickname ?? '匿名'}</Text>
+            <Text style={styles.author}>{item.author.nickname}</Text>
           </TouchableOpacity>
           <View style={styles.likesRow}>
             <Ionicons name="heart-outline" size={14} color="#888" />
-            <Text style={styles.likesText}>{item.likeCount ?? 0}</Text>
+            <Text style={styles.likesText}>{item.likeCount}</Text>
           </View>
         </View>
       </TouchableOpacity>
@@ -229,7 +250,6 @@ export default function DiscoverScreen() {
               onPress={() => {
                 if (tab.key === 'square') {
                   setActiveBottom(tab.key);
-                  // 自动滚到顶部并下拉刷新
                   listRef.current?.scrollToOffset({ offset: 0, animated: true });
                   onRefresh();
                 } else {

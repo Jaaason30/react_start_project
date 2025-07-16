@@ -1,12 +1,13 @@
+// src/main/java/com/zusa/backend/service/impl/UserServiceImpl.java
 package com.zusa.backend.service.impl;
 
 import com.zusa.backend.dto.user.GenderDto;
 import com.zusa.backend.dto.user.UserDto;
 import com.zusa.backend.dto.user.UserSummaryDto;
 import com.zusa.backend.entity.user.Follow;
-import com.zusa.backend.entity.User;
 import com.zusa.backend.entity.user.UserPhoto;
 import com.zusa.backend.entity.user.UserProfilePicture;
+import com.zusa.backend.entity.User;
 import com.zusa.backend.repository.*;
 import com.zusa.backend.service.UserService;
 import com.zusa.backend.service.mapper.UserMapper;
@@ -23,25 +24,15 @@ import org.springframework.transaction.annotation.Transactional;
 import java.util.*;
 import java.util.stream.IntStream;
 
-/**
- * UserServiceImpl – 完整实现：
- * 1. 支持注册 / 登录
- * 2. 支持按 UUID / shortId 查询资料
- * 3. 支持关注 / 取关（UUID & shortId）
- * 4. 支持分页获取粉丝 / 关注列表
- * 5. 支持完整资料更新（头像 / 相册 / 其他字段）
- */
 @Service
 @RequiredArgsConstructor
 @Slf4j
 public class UserServiceImpl implements UserService {
 
-    // ====== 核心仓库 ======
     private final UserRepository userRepo;
     private final FollowRepository followRepository;
     private final PasswordEncoder passwordEncoder;
 
-    // ====== 资料相关仓库 ======
     private final GenderRepository genderRepo;
     private final InterestRepository interestRepo;
     private final VenueRepository venueRepo;
@@ -49,12 +40,9 @@ public class UserServiceImpl implements UserService {
     private final UserProfilePictureRepository userProfilePictureRepo;
     private final UserPhotoRepository userPhotoRepository;
 
-    // DTO ↔ Entity 映射
     private final UserMapper userMapper;
 
-    // ===============================================================
     // 1) 注册 / 登录
-    // ===============================================================
 
     @Override
     @Transactional
@@ -84,14 +72,12 @@ public class UserServiceImpl implements UserService {
         return userMapper.toDto(u);
     }
 
-    // ===============================================================
     // 2) 用户资料查询
-    // ===============================================================
 
     @Override
     @Transactional(readOnly = true)
     public UserDto getUserProfileByUuid(UUID uuid) {
-        log.info("[🔍 getUserProfileByUuid] 查询 UUID: {}", uuid);
+        log.info("[🔍 getUserProfileByUuid] UUID = {}", uuid);
         User user = userRepo.findByUuid(uuid)
                 .orElseThrow(() -> new UsernameNotFoundException("用户不存在: " + uuid));
         return userMapper.toDto(user);
@@ -100,14 +86,23 @@ public class UserServiceImpl implements UserService {
     @Override
     @Transactional(readOnly = true)
     public UserDto getUserProfileByShortId(Long shortId) {
+        log.info("[🔍 getUserProfileByShortId] shortId = {}", shortId);
         User user = userRepo.findByShortId(shortId)
                 .orElseThrow(() -> new UsernameNotFoundException("用户不存在: " + shortId));
         return userMapper.toDto(user);
     }
 
-    // ===============================================================
-    // 3) 关注 / 取关
-    // ===============================================================
+    // 新增：通过 shortId 更新资料（委托给 updateProfilePartially）
+
+    @Override
+    @Transactional
+    public void updateProfileByShortId(UserDto req, Long shortId) {
+        User user = userRepo.findByShortId(shortId)
+                .orElseThrow(() -> new UsernameNotFoundException("用户不存在: " + shortId));
+        updateProfilePartially(req, user.getUuid());
+    }
+
+    // 3) 关注 / 取关 (UUID)
 
     @Override
     @Transactional
@@ -117,7 +112,7 @@ public class UserServiceImpl implements UserService {
         }
         User follower = userRepo.findByUuid(userUuid)
                 .orElseThrow(() -> new UsernameNotFoundException("找不到当前用户"));
-        User target = userRepo.findByUuid(targetUuid)
+        User target   = userRepo.findByUuid(targetUuid)
                 .orElseThrow(() -> new UsernameNotFoundException("找不到目标用户"));
         if (!followRepository.existsByFollowerAndTarget(follower, target)) {
             followRepository.save(new Follow(follower, target));
@@ -130,13 +125,13 @@ public class UserServiceImpl implements UserService {
     public void unfollow(UUID userUuid, UUID targetUuid) {
         User follower = userRepo.findByUuid(userUuid)
                 .orElseThrow(() -> new UsernameNotFoundException("找不到当前用户"));
-        User target = userRepo.findByUuid(targetUuid)
+        User target   = userRepo.findByUuid(targetUuid)
                 .orElseThrow(() -> new UsernameNotFoundException("找不到目标用户"));
         followRepository.deleteByFollowerAndTarget(follower, target);
         log.info("[Unfollow] {} 取消关注 {}", follower.getNickname(), target.getNickname());
     }
 
-    // ---- shortId ----
+    // 关注 / 取关 (shortId)
 
     @Override
     @Transactional
@@ -154,9 +149,7 @@ public class UserServiceImpl implements UserService {
         unfollow(userUuid, target.getUuid());
     }
 
-    // ===============================================================
     // 4) 粉丝 / 关注列表
-    // ===============================================================
 
     @Override
     @Transactional(readOnly = true)
@@ -171,8 +164,6 @@ public class UserServiceImpl implements UserService {
         return userRepo.findFollowingByUuid(userUuid, pageable)
                 .map(userMapper::toSummaryDto);
     }
-
-    // ---- shortId ----
 
     @Override
     @Transactional(readOnly = true)
@@ -190,9 +181,7 @@ public class UserServiceImpl implements UserService {
         return listFollowing(u.getUuid(), pageable);
     }
 
-    // ===============================================================
-    // 5) 部分资料更新 – 头像 / 相册 / 其他字段
-    // ===============================================================
+    // 5) 部分更新资料 (头像 / 相册 / 其他字段)
 
     @Override
     @Transactional
@@ -202,7 +191,8 @@ public class UserServiceImpl implements UserService {
 
         // ---------- 头像处理 ----------
         if (req.getProfileBase64() != null && req.getProfileMime() != null) {
-            log.info("[AvatarUpload] 用户 UUID: {}，Mime: {}，Base64 长度: {}", userUuid, req.getProfileMime(), req.getProfileBase64().length());
+            log.info("[AvatarUpload] 用户 UUID: {}，Mime: {}，Base64 长度: {}",
+                    userUuid, req.getProfileMime(), req.getProfileBase64().length());
             UserProfilePicture pic = user.getProfilePicture();
             if (pic == null) {
                 pic = UserProfilePicture.builder()
@@ -221,8 +211,8 @@ public class UserServiceImpl implements UserService {
 
         // ---------- 相册处理 ----------
         if (req.getKeepAlbumUrls() != null) {
-            log.info("[AlbumUpload] 用户 UUID: {}，保留旧图 {} 张", userUuid, req.getKeepAlbumUrls().size());
-            // 过滤需要保留的图片
+            log.info("[AlbumUpload] 用户 UUID: {}，保留旧图 {} 张",
+                    userUuid, req.getKeepAlbumUrls().size());
             List<UserPhoto> keep = new ArrayList<>();
             for (String url : req.getKeepAlbumUrls()) {
                 user.getAlbumPhotos().stream()
@@ -230,7 +220,6 @@ public class UserServiceImpl implements UserService {
                         .findFirst()
                         .ifPresent(keep::add);
             }
-            // 删除其余图片
             List<UserPhoto> toDelete = new ArrayList<>(user.getAlbumPhotos());
             toDelete.removeAll(keep);
             user.getAlbumPhotos().clear();
@@ -239,7 +228,8 @@ public class UserServiceImpl implements UserService {
             log.info("[AlbumUpload] 删除旧图 {} 张", toDelete.size());
         }
 
-        if (req.getAlbumBase64List() != null && req.getAlbumMimeList() != null &&
+        if (req.getAlbumBase64List() != null &&
+                req.getAlbumMimeList() != null &&
                 req.getAlbumBase64List().size() == req.getAlbumMimeList().size()) {
             log.info("[AlbumUpload] 新增 {} 张图片", req.getAlbumBase64List().size());
             var newPhotos = IntStream.range(0, req.getAlbumBase64List().size())
@@ -255,6 +245,7 @@ public class UserServiceImpl implements UserService {
         }
 
         // ---------- 其余字段 ----------
+
         Optional.ofNullable(req.getNickname()).ifPresent(user::setNickname);
         Optional.ofNullable(req.getBio()).ifPresent(user::setBio);
         Optional.ofNullable(req.getDateOfBirth()).ifPresent(user::setDateOfBirth);
@@ -266,7 +257,9 @@ public class UserServiceImpl implements UserService {
             genderRepo.findByText(req.getGender().getText()).ifPresent(user::setGender);
         }
         if (req.getGenderPreferences() != null && !req.getGenderPreferences().isEmpty()) {
-            List<String> texts = req.getGenderPreferences().stream().map(GenderDto::getText).toList();
+            List<String> texts = req.getGenderPreferences().stream()
+                    .map(GenderDto::getText)
+                    .toList();
             user.setGenderPreferences(genderRepo.findAllByTextIn(texts));
         }
         if (req.getInterests() != null && !req.getInterests().isEmpty()) {
@@ -279,9 +272,7 @@ public class UserServiceImpl implements UserService {
         userRepo.save(user);
     }
 
-    // ===============================================================
-    // 6) 辅助查询（JWT / Refresh Token）
-    // ===============================================================
+    // 6) 辅助查询
 
     @Override
     @Transactional(readOnly = true)

@@ -1,3 +1,5 @@
+// src/screens/Post/hooks/useComments.tsx
+
 import { useState, useEffect } from 'react';
 import { apiClient } from '../../../services/apiClient';
 import { API_ENDPOINTS } from '../../../constants/api';
@@ -17,7 +19,6 @@ export const useComments = (postUuid: string) => {
   const fetchComments = async (pageNumber = 0) => {
     try {
       const sortParam = activeSort === '最新' ? 'LATEST' : 'HOT';
-
       const { data } = await apiClient.get<any>(
         `${API_ENDPOINTS.POST_COMMENTS.replace(':uuid', postUuid)}` +
           `?sortType=${sortParam}` +
@@ -25,42 +26,55 @@ export const useComments = (postUuid: string) => {
       );
 
       const newComments: CommentType[] = (data.content || []).map((c: any) => {
-        console.log('[🧩 CommentDto]', c);
+        // 先把回复也转换成 CommentType
+        const processedReplies: CommentType[] = (c.replies || []).map((r: any) => ({
+          id: r.uuid,
+          author: {
+            shortId: r.author.shortId,
+            nickname: r.author.nickname,
+            profilePictureUrl:
+              patchProfileUrl(r.author.profilePictureUrl, avatarVersion) ?? null,
+          },
+          content: r.content,
+          time: new Date(r.createdAt).toLocaleString(),
+          likes: r.likeCount ?? 0,
+          liked: !!r.likedByCurrentUser,
+          parentCommentUuid: r.parentCommentUuid ?? undefined,
+          replyToUser: r.replyToUser
+            ? {
+                shortId: r.replyToUser.shortId,
+                nickname: r.replyToUser.nickname,
+                profilePictureUrl:
+                  patchProfileUrl(r.replyToUser.profilePictureUrl, avatarVersion) ?? null,
+              }
+            : undefined,
+          replyCount: 0,
+          replies: [],
+        }));
 
-        const processedReplies: CommentType[] = (c.replies || []).map((r: any) => {
-          console.log('[🧩 ReplyDto]', r);
-
-          return {
-            id: r.uuid,
-            authorUuid: r.author.uuid,
-            user: r.author.nickname,
-            avatar:
-              patchProfileUrl(r.author.profilePictureUrl, avatarVersion) ||
-              'https://via.placeholder.com/100x100.png?text=No+Avatar',
-            content: r.content,
-            time: new Date(r.createdAt).toLocaleString(),
-            likes: r.likeCount ?? 0,
-            liked: !!r.likedByCurrentUser,
-            parentCommentUuid: r.parentCommentUuid,
-            replyToUser: r.replyToUser,
-            replyCount: 0,
-          };
-        });
-
+        // 根评论
         return {
           id: c.uuid,
-          authorUuid: c.author.uuid,
-          user: c.author.nickname,
-          avatar:
-            patchProfileUrl(c.author.profilePictureUrl, avatarVersion) ||
-            'https://via.placeholder.com/100x100.png?text=No+Avatar',
+          author: {
+            shortId: c.author.shortId,
+            nickname: c.author.nickname,
+            profilePictureUrl:
+              patchProfileUrl(c.author.profilePictureUrl, avatarVersion) ?? null,
+          },
           content: c.content,
           time: new Date(c.createdAt).toLocaleString(),
           likes: c.likeCount ?? 0,
           liked: !!c.likedByCurrentUser,
-          parentCommentUuid: c.parentCommentUuid,
-          replyToUser: c.replyToUser,
-          replyCount: c.replyCount || 0,
+          parentCommentUuid: c.parentCommentUuid ?? undefined,
+          replyToUser: c.replyToUser
+            ? {
+                shortId: c.replyToUser.shortId,
+                nickname: c.replyToUser.nickname,
+                profilePictureUrl:
+                  patchProfileUrl(c.replyToUser.profilePictureUrl, avatarVersion) ?? null,
+              }
+            : undefined,
+          replyCount: c.replyCount ?? 0,
           replies: processedReplies,
         };
       });
@@ -76,50 +90,52 @@ export const useComments = (postUuid: string) => {
 
   const fetchReplies = async (commentId: string) => {
     setLoadingReplies(prev => new Set(prev).add(commentId));
-
     try {
       const url = `${API_ENDPOINTS.COMMENT_REPLIES.replace(':id', commentId)}?page=0&size=20`;
       const { data } = await apiClient.get<any>(url);
 
       const replies: CommentType[] = (data.content || [])
         .filter((r: any) => r != null)
-        .map((r: any) => {
-          console.log('[🧩 Fetched Reply]', r);
-
-          return {
-            id: r.uuid,
-            authorUuid: r.author.uuid,
-            user: r.author.nickname,
-            avatar: patchProfileUrl(r.author.profilePictureUrl, avatarVersion) ||
-                    'https://via.placeholder.com/100x100.png?text=No+Avatar',
-            content: r.content,
-            time: new Date(r.createdAt).toLocaleString(),
-            likes: r.likeCount,
-            liked: !!r.likedByCurrentUser,
-            parentCommentUuid: r.parentCommentUuid,
-            replyToUser: r.replyToUser,
-            replyCount: 0,
-          };
-        });
+        .map((r: any) => ({
+          id: r.uuid,
+          author: {
+            shortId: r.author.shortId,
+            nickname: r.author.nickname,
+            profilePictureUrl:
+              patchProfileUrl(r.author.profilePictureUrl, avatarVersion) ?? null,
+          },
+          content: r.content,
+          time: new Date(r.createdAt).toLocaleString(),
+          likes: r.likeCount ?? 0,
+          liked: !!r.likedByCurrentUser,
+          parentCommentUuid: r.parentCommentUuid ?? undefined,
+          replyToUser: r.replyToUser
+            ? {
+                shortId: r.replyToUser.shortId,
+                nickname: r.replyToUser.nickname,
+                profilePictureUrl:
+                  patchProfileUrl(r.replyToUser.profilePictureUrl, avatarVersion) ?? null,
+              }
+            : undefined,
+          replyCount: 0,
+          replies: [],
+        }));
 
       setComments(prev =>
-        prev.map(c =>
-          c.id === commentId ? { ...c, replies } : c
-        )
+        prev.map(c => (c.id === commentId ? { ...c, replies } : c))
       );
-
       setShowReplies(prev => {
-        const newSet = new Set(prev);
-        newSet.add(commentId);
-        return newSet;
+        const next = new Set(prev);
+        next.add(commentId);
+        return next;
       });
     } catch (err) {
       console.error('[❌ fetchReplies]', err);
     } finally {
       setLoadingReplies(prev => {
-        const newSet = new Set(prev);
-        newSet.delete(commentId);
-        return newSet;
+        const next = new Set(prev);
+        next.delete(commentId);
+        return next;
       });
     }
   };

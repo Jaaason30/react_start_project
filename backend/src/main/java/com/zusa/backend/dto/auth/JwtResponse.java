@@ -15,7 +15,7 @@ public class JwtResponse {
     private String accessToken;
     private String refreshToken;
     private String tokenType = "Bearer";
-    private UUID userUuid;
+    private Long shortId;
     private String email;
     private String nickname;
 }

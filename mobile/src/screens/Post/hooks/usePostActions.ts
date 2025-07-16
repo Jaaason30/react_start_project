@@ -1,3 +1,5 @@
+// src/screens/Post/hooks/usePostActions.tsx
+
 import { Alert } from 'react-native';
 import { apiClient } from '../../../services/apiClient';
 import { API_ENDPOINTS } from '../../../constants/api';
@@ -9,58 +11,67 @@ export const usePostActions = (
   setPost: React.Dispatch<React.SetStateAction<PostType | null>>,
   isFollowing: boolean,
   setIsFollowing: React.Dispatch<React.SetStateAction<boolean>>,
+  isLiked: boolean,
   setIsLiked: React.Dispatch<React.SetStateAction<boolean>>,
+  isCollected: boolean,
   setIsCollected: React.Dispatch<React.SetStateAction<boolean>>
 ) => {
+  /** 切换关注 / 取关 —— 使用 nested author.shortId */
   const toggleFollow = async () => {
     if (!post) return;
     try {
+      const url = `${API_ENDPOINTS.USER_FOLLOW_SHORT}/${post.author.shortId}`;
+      console.log('[usePostActions] toggleFollow →', url);
       if (isFollowing) {
-        await apiClient.delete(
-          `${API_ENDPOINTS.USER_FOLLOW}?targetUuid=${post.authorUuid}`
-        );
+        await apiClient.delete(url);
       } else {
-        await apiClient.post(
-          `${API_ENDPOINTS.USER_FOLLOW}?targetUuid=${post.authorUuid}`
-        );
+        await apiClient.post(url);
       }
-      setIsFollowing(prev => !prev);
+      setIsFollowing(!isFollowing);
     } catch (err) {
+      console.error('[usePostActions] toggleFollow error', err);
       Alert.alert(isFollowing ? '取消关注失败' : '关注失败');
     }
   };
 
+  /** 切换点赞 / 收藏 —— 同步所有状态 */
   const toggleReaction = async (type: 'LIKE' | 'COLLECT') => {
+    if (!post) return;
     try {
-      const response = await apiClient.post<any>(
-        `${API_ENDPOINTS.POST_REACTIONS.replace(':uuid', postUuid)}`,
-        { type }
-      );
-      
-      if (!response.data) {
+      const url = `${API_ENDPOINTS.POST_REACTIONS.replace(':uuid', postUuid)}`;
+      console.log('[usePostActions] toggleReaction →', url, 'type:', type);
+      const { data } = await apiClient.post<{
+        likeCount: number;
+        collectCount: number;
+        commentCount: number;
+        likedByCurrentUser: boolean;
+        collectedByCurrentUser: boolean;
+      }>(url, { type });
+
+      if (!data) {
         Alert.alert('操作失败', '服务器响应异常，请稍后重试');
         return;
-      } 
-      
-      const { data } = response;
-      
+      }
+
+      // 先更新 post 对象
       setPost(prev =>
         prev
           ? {
               ...prev,
-              likeCount: data.likeCount ?? prev.likeCount,
-              collectCount: data.collectCount ?? prev.collectCount,
-              commentCount: data.commentCount ?? prev.commentCount,
-              likedByCurrentUser: data.likedByCurrentUser ?? false,
-              collectedByCurrentUser: data.collectedByCurrentUser ?? false,
+              likeCount: data.likeCount,
+              collectCount: data.collectCount,
+              commentCount: data.commentCount,
+              likedByCurrentUser: data.likedByCurrentUser,
+              collectedByCurrentUser: data.collectedByCurrentUser,
             }
           : prev
       );
-      
-      setIsLiked(data.likedByCurrentUser ?? false);
-      setIsCollected(data.collectedByCurrentUser ?? false);
-      
+
+      // 再同步本地 isLiked/isCollected
+      setIsLiked(data.likedByCurrentUser);
+      setIsCollected(data.collectedByCurrentUser);
     } catch (err) {
+      console.error('[usePostActions] toggleReaction error', err);
       Alert.alert('操作失败', '网络错误，请稍后重试');
     }
   };

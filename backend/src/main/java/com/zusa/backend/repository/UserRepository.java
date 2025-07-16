@@ -12,22 +12,28 @@ import java.util.UUID;
 
 public interface UserRepository extends JpaRepository<User, Long> {
 
+    // ———— 基本查询 ————
     Optional<User> findByUuid(UUID uuid);
+
+    Optional<User> findByShortId(Long shortId);
 
     Optional<User> findByNickname(String nickname);
 
     Optional<User> findByEmail(String email);
 
-    /** 支持 shortId 查找 */
-    Optional<User> findByShortId(Long shortId);
-
     Page<User> findByNicknameContainingIgnoreCase(String keyword, Pageable pageable);
 
-    /** 分页查询粉丝集合 */
-    @Query("select u.followers from User u where u.uuid = :uuid")
+    // ———— 基于 UUID 的粉丝/关注查询（保持兼容） ————
+    @Query("SELECT f FROM User u JOIN u.followers f WHERE u.uuid = :uuid")
     Page<User> findFollowersByUuid(@Param("uuid") UUID uuid, Pageable pageable);
 
-    /** 分页查询关注集合 */
-    @Query("select u.following from User u where u.uuid = :uuid")
+    @Query("SELECT f FROM User u JOIN u.following f WHERE u.uuid = :uuid")
     Page<User> findFollowingByUuid(@Param("uuid") UUID uuid, Pageable pageable);
+
+    // ———— 基于 shortId 的粉丝/关注查询 ————
+    @Query("SELECT f FROM User u JOIN u.followers f WHERE u.shortId = :shortId")
+    Page<User> findFollowersByShortId(@Param("shortId") Long shortId, Pageable pageable);
+
+    @Query("SELECT f FROM User u JOIN u.following f WHERE u.shortId = :shortId")
+    Page<User> findFollowingByShortId(@Param("shortId") Long shortId, Pageable pageable);
 }

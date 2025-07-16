@@ -10,9 +10,6 @@ public class UserSummaryDto {
     /** 短 ID **/
     private Long shortId;
 
-    /** 对外展示用 UUID **/
-    private UUID uuid;
-
     /** 用户昵称 **/
     private String nickname;
 

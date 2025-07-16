@@ -1,4 +1,6 @@
-import React,{ useState, useEffect } from 'react';
+// src/screens/Post/hooks/usePostDetail.tsx
+
+import React, { useState, useEffect } from 'react';
 import { Alert } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { apiClient } from '../../../services/apiClient';
@@ -15,18 +17,20 @@ export const usePostDetail = (postUuid: string) => {
   const [isCollected, setIsCollected] = useState(false);
   const [isFollowing, setIsFollowing] = useState(false);
 
+  /** 获取帖子详情 */
   const fetchPostDetail = async () => {
     try {
-      const { data } = await apiClient.get<any>(
-        `${API_ENDPOINTS.POST_DETAIL}/${postUuid}`
-      );
+      const url = `${API_ENDPOINTS.POST_DETAIL}/${postUuid}`;
+      console.log('[usePostDetail] Fetching post detail from:', url);
+      const { data } = await apiClient.get<any>(url);
 
-      const avatarUrl =
-        patchProfileUrl(data.author?.profilePictureUrl, avatarVersion) ||
-        'https://via.placeholder.com/200x200.png?text=No+Avatar';
-
-      const processedImages = (data.images || []).map(
-        (img: any) => patchUrl(img.url) || img.url
+      // 处理作者头像 URL
+      const rawProfileUrl = data.author?.profilePictureUrl;
+      const profileUrl = patchProfileUrl(rawProfileUrl, avatarVersion) || null;
+    console.log('[usePostDetail] response data →', data);
+      // 处理帖子图片列表
+      const processedImages: string[] = (data.images || []).map((img: any) =>
+        patchUrl(img.url) || img.url
       );
 
       const newPost: PostType = {
@@ -34,9 +38,11 @@ export const usePostDetail = (postUuid: string) => {
         title: data.title,
         content: data.content,
         images: processedImages,
-        author: data.author?.nickname || '未知用户',
-        authorAvatar: avatarUrl,
-        authorUuid: data.author?.uuid,
+        author: {
+          shortId: data.author.shortId,
+          nickname: data.author.nickname,
+          profilePictureUrl: profileUrl,
+        },
         likeCount: data.likeCount ?? 0,
         collectCount: data.collectCount ?? 0,
         commentCount: data.commentCount ?? 0,
@@ -45,53 +51,52 @@ export const usePostDetail = (postUuid: string) => {
         followedByCurrentUser: data.followedByCurrentUser ?? false,
       };
 
+      // 更新状态
       setPost(newPost);
-      setIsLiked(!!data.likedByCurrentUser);
-      setIsCollected(!!data.collectedByCurrentUser);
+      setIsLiked(newPost.likedByCurrentUser);
+      setIsCollected(newPost.collectedByCurrentUser);
       setIsFollowing(newPost.followedByCurrentUser);
     } catch (err) {
-      Alert.alert('加载失败', '无法获取帖子详情');
+      console.error('[usePostDetail] 请求失败', err);
+      Alert.alert('加载失败', '无法获取帖子详情，请稍后重试');
     }
   };
 
-  const deletePost = async () => {
-    if (!post) return;
-    
+  /** 删除帖子 */
+  const deletePost = async (): Promise<boolean> => {
+    if (!post) return false;
     try {
-      await apiClient.delete(
-        `${API_ENDPOINTS.POST_DETAIL}/${post.uuid}`
-      );
+      const url = `${API_ENDPOINTS.POST_DETAIL}/${post.uuid}`;
+      console.log('[usePostDetail] Deleting post at:', url);
+      await apiClient.delete(url);
       return true;
     } catch (err) {
+      console.error('[usePostDetail] 删除失败', err);
       Alert.alert('删除失败', '请稍后重试');
       return false;
     }
   };
 
+  // 初次加载 & postUuid 变化时
   useEffect(() => {
-    const loadInitial = async () => {
-      setLoading(true);
-      await fetchPostDetail();
-      setLoading(false);
-    };
-    loadInitial();
+    setLoading(true);
+    fetchPostDetail().finally(() => setLoading(false));
   }, [postUuid]);
 
-  // 当用户头像更新时，如果是当前用户的帖子，刷新帖子详情
+  // 如果当前用户是作者，头像更新后刷新
   useEffect(() => {
-    if (post?.authorUuid === profileData?.uuid) {
+    if (post?.author.shortId === profileData?.shortId) {
       fetchPostDetail();
     }
   }, [profileData?.profilePictureUrl]);
 
-  // 使用 useFocusEffect 确保页面聚焦时刷新
+  // 页面聚焦时，如果是自己的帖子，刷新详情
   useFocusEffect(
     React.useCallback(() => {
-      if (post?.authorUuid === profileData?.uuid) {
+      if (post?.author.shortId === profileData?.shortId) {
         fetchPostDetail();
       }
-      return () => {};
-    }, [post?.authorUuid, profileData?.uuid])
+    }, [post?.author.shortId, profileData?.shortId])
   );
 
   return {
@@ -106,6 +111,6 @@ export const usePostDetail = (postUuid: string) => {
     setIsFollowing,
     fetchPostDetail,
     deletePost,
-    currentUserUuid: profileData?.uuid,
+    currentUserShortId: profileData?.shortId,
   };
 };
