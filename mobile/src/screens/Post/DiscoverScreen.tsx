@@ -1,5 +1,3 @@
-// src/screens/DiscoverScreen.tsx
-
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   View,
@@ -22,7 +20,7 @@ import { useUserProfile } from '../../contexts/UserProfileContext';
 import { PostType } from '../Post/types';
 import { DiscoverBanner } from './components/DiscoverBanner';
 
-// Navigation types
+/* ---------- Navigation types ---------- */
 export type RootStackParamList = {
   Login: undefined;
   Register: undefined;
@@ -31,25 +29,30 @@ export type RootStackParamList = {
   SeatPage: { seatId: string };
   Discover: undefined;
   Search: undefined;
-  PlayerProfile: { userId?: string };
+  PlayerProfile: { shortId?: number; userId?: string };
   PostCreation: undefined;
   PostDetail: { post: PostType };
 };
 
 type DiscoverNav = NativeStackNavigationProp<RootStackParamList, 'Discover'>;
 
+/* ---------- Tabs ---------- */
 const TOP_TABS = ['关注', '推荐'] as const;
 const BOTTOM_TABS = [
-  { key: 'heart', label: '心动', icon: 'heart-outline', screen: 'Dashboard' },
-  { key: 'chat', label: '聊天', icon: 'chatbubbles-outline', screen: 'SeatOverview' },
-  { key: 'post', label: '', icon: '', screen: 'PostCreation' },
-  { key: 'square', label: '广场', icon: 'apps-outline', screen: 'Discover' },
-  { key: 'me', label: '我的', icon: 'person-outline', screen: 'PlayerProfile' },
+  { key: 'heart',  label: '心动', icon: 'heart-outline',      screen: 'Dashboard'     },
+  { key: 'chat',   label: '聊天', icon: 'chatbubbles-outline', screen: 'SeatOverview' },
+  { key: 'post',   label: '',     icon: '',                    screen: 'PostCreation'  },
+  { key: 'square', label: '广场', icon: 'apps-outline',        screen: 'Discover'      },
+  { key: 'me',     label: '我的', icon: 'person-outline',      screen: 'PlayerProfile' },
 ] as const;
+
+/* ---------- 自动刷新最小停留时间(ms) ---------- */
+const MIN_AUTO_REFRESH_MS = 800; // 根据体验调整 600~1000
 
 export default function DiscoverScreen() {
   const navigation = useNavigation<DiscoverNav>();
   const { avatarVersion } = useUserProfile();
+
   const [activeTopTab, setActiveTopTab] = useState<typeof TOP_TABS[number]>('推荐');
   const [activeBottom, setActiveBottom] = useState<typeof BOTTOM_TABS[number]['key']>('square');
   const [posts, setPosts] = useState<PostType[]>([]);
@@ -57,62 +60,59 @@ export default function DiscoverScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const listRef = useRef<FlatList<PostType>>(null);
 
-  /** 拉取帖子列表并标准化为 PostType */
-const fetchPosts = useCallback(async () => {
-  const res = await apiClient.get<{ content: any[] }>(
-    `${API_ENDPOINTS.POSTS_FEED}?page=0&size=20`
-  );
-  if (res.error) {
-    console.error('[fetchPosts] error:', res.error);
-    setPosts([]);
-    return;
-  }
-
-  const rawItems = res.data?.content ?? [];
-  //console.log('[fetchPosts] rawItems →', rawItems); // 👉 先打印出来确认字段名
-
-  const standardized: PostType[] = rawItems.map(item => {
-    // 1. 优先取 coverUrl
-    let cover = item.coverUrl 
-      ? patchUrl(item.coverUrl) 
-      : item.coverImageUrl 
-        ? patchUrl(item.coverImageUrl) 
-        : '';
-
-    // 2. 如果还没拿到，再试试 images 数组
-    if (!cover && Array.isArray(item.images) && item.images.length) {
-      // 注意：这里 item.images 可能是字符串数组，也可能是对象数组
-      const first = item.images[0];
-      if (typeof first === 'string') {
-        cover = patchUrl(first);
-      } else if (first.url) {
-        cover = patchUrl(first.url);
-      }
+  /* ---------- 拉取帖子并标准化 ---------- */
+  const fetchPosts = useCallback(async () => {
+    const res = await apiClient.get<{ content: any[] }>(
+      `${API_ENDPOINTS.POSTS_FEED}?page=0&size=20`
+    );
+    if (res.error) {
+      console.error('[fetchPosts] error:', res.error);
+      setPosts([]);
+      return;
     }
 
-    return {
-      uuid: item.uuid,
-      title: item.title,
-      content: item.content,
-      images: cover ? [cover] : [],
-      author: {
-        shortId: item.author.shortId,
-        nickname: item.author.nickname,
-        profilePictureUrl:
-          patchProfileUrl(item.author.profilePictureUrl, avatarVersion),
-      },
-      likeCount: item.likeCount ?? 0,
-      collectCount: item.collectCount ?? 0,
-      commentCount: item.commentCount ?? 0,
-      likedByCurrentUser: !!item.likedByCurrentUser,
-      collectedByCurrentUser: !!item.collectedByCurrentUser,
-      followedByCurrentUser: !!item.followedByCurrentUser,
-    };
-  });
+    const rawItems = res.data?.content ?? [];
 
-  setPosts(standardized);
-}, [avatarVersion]);
+    const standardized: PostType[] = rawItems.map(item => {
+      // 封面
+      let cover = item.coverUrl
+        ? patchUrl(item.coverUrl)
+        : item.coverImageUrl
+        ? patchUrl(item.coverImageUrl)
+        : '';
 
+      if (!cover && Array.isArray(item.images) && item.images.length) {
+        const first = item.images[0];
+        if (typeof first === 'string') {
+          cover = patchUrl(first);
+        } else if (first?.url) {
+          cover = patchUrl(first.url);
+        }
+      }
+
+      return {
+        uuid: item.uuid,
+        title: item.title,
+        content: item.content,
+        images: cover ? [cover] : [],
+        author: {
+          shortId: item.author?.shortId,
+          nickname: item.author?.nickname,
+          profilePictureUrl: patchProfileUrl(item.author?.profilePictureUrl, avatarVersion),
+        },
+        likeCount: item.likeCount ?? 0,
+        collectCount: item.collectCount ?? 0,
+        commentCount: item.commentCount ?? 0,
+        likedByCurrentUser: !!item.likedByCurrentUser,
+        collectedByCurrentUser: !!item.collectedByCurrentUser,
+        followedByCurrentUser: !!item.followedByCurrentUser,
+      };
+    });
+
+    setPosts(standardized);
+  }, [avatarVersion]);
+
+  /* ---------- 初次加载 ---------- */
   const loadInitial = useCallback(async () => {
     setLoading(true);
     await fetchPosts();
@@ -123,23 +123,48 @@ const fetchPosts = useCallback(async () => {
     loadInitial();
   }, [loadInitial]);
 
+  /* ---------- 下拉刷新（用户手动） ---------- */
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
     await fetchPosts();
     setRefreshing(false);
   }, [fetchPosts]);
 
-  /** 渲染每张卡片 */
+  /* ---------- 底部“广场”点击自动刷新（带延迟保持菊花） ---------- */
+  const triggerAutoRefresh = useCallback(() => {
+    // 滚到顶部（要在顶部才能看到刷新菊花）
+    listRef.current?.scrollToOffset({ offset: 0, animated: true });
+
+    // 在下一帧切换 refreshing
+    requestAnimationFrame(async () => {
+      const start = Date.now();
+      setRefreshing(true);
+      await fetchPosts();
+      const elapsed = Date.now() - start;
+      const remain = Math.max(MIN_AUTO_REFRESH_MS - elapsed, 0);
+      setTimeout(() => {
+        setRefreshing(false);
+      }, remain);
+    });
+  }, [fetchPosts]);
+
+  /* ---------- 卡片组件 ---------- */
   const PostCard: React.FC<{ item: PostType }> = ({ item }) => {
-    const [uri, setUri] = useState(item.images[0] || 'https://via.placeholder.com/400x600');
+    const [uri, setUri] = useState(
+      item.images[0] || 'https://via.placeholder.com/400x600'
+    );
+
     useEffect(() => {
       setUri(item.images[0] || 'https://via.placeholder.com/400x600');
     }, [item.images]);
 
     const avatarUri = item.author.profilePictureUrl || '';
-
     const handleAuthorPress = () => {
-      navigation.navigate('PlayerProfile', { userId: String(item.author.shortId) });
+      if (item.author.shortId != null) {
+        navigation.navigate('PlayerProfile', { shortId: item.author.shortId });
+      } else {
+        navigation.navigate('PlayerProfile', { userId: String(item.author.shortId) });
+      }
     };
 
     return (
@@ -163,7 +188,12 @@ const fetchPosts = useCallback(async () => {
             onPress={handleAuthorPress}
             activeOpacity={0.7}
           >
-            <FastImage source={{ uri: avatarUri }} style={styles.authorAvatar} />
+            <FastImage
+              key={`${item.author.shortId}-${avatarVersion}`}
+              source={{ uri: avatarUri }}
+              style={styles.authorAvatar}
+              resizeMode={FastImage.resizeMode.cover}
+            />
             <Text style={styles.author}>{item.author.nickname}</Text>
           </TouchableOpacity>
           <View style={styles.likesRow}>
@@ -220,7 +250,13 @@ const fetchPosts = useCallback(async () => {
           windowSize={9}
           contentContainerStyle={styles.listContent}
           refreshControl={
-            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#d81e06" />
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={onRefresh}
+              tintColor="#d81e06"
+              colors={['#d81e06']}
+              progressViewOffset={50} // 往下偏移让菊花更显眼
+            />
           }
           ListHeaderComponent={<DiscoverBanner />}
         />
@@ -250,8 +286,10 @@ const fetchPosts = useCallback(async () => {
               onPress={() => {
                 if (tab.key === 'square') {
                   setActiveBottom(tab.key);
-                  listRef.current?.scrollToOffset({ offset: 0, animated: true });
-                  onRefresh();
+                  triggerAutoRefresh();   // 自动下拉刷新（保持菊花至少 MIN_AUTO_REFRESH_MS）
+                } else if (tab.key === 'me') {
+                  navigation.navigate('PlayerProfile', {} as any);
+                  setActiveBottom(tab.key);
                 } else {
                   navigation.navigate(tab.screen as any);
                   setActiveBottom(tab.key);

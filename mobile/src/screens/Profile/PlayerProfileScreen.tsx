@@ -1,4 +1,5 @@
 // src/screens/PlayerProfileScreen.tsx
+// Modified to use patchProfileUrl / patchUrl for cache-busting URLs
 
 import React, { useEffect, useState, useRef } from 'react';
 import {
@@ -19,7 +20,8 @@ import FastImage from 'react-native-fast-image';
 import { useUserProfile } from '../../contexts/UserProfileContext';
 import { styles } from '../../theme/PlayerProfileScreen.styles';
 import { apiClient } from '../../services/apiClient';
-import { API_ENDPOINTS, BASE_URL } from '../../constants/api';
+import { API_ENDPOINTS } from '../../constants/api';
+import { patchProfileUrl, patchUrl } from '../Post/utils/urlHelpers';
 
 /* ---------- 路由类型 ---------- */
 type RootStackParamList = {
@@ -86,7 +88,7 @@ export default function PlayerProfileScreen() {
           const r = await apiClient.get(`${API_ENDPOINTS.USER_BY_SHORT_ID}/${targetShortId}`);
           if (r.error) throw new Error(r.error);
           info = r.data;
-        } 
+        }
         if (!info) { setError('无法获取用户信息'); return; }
         setUserData(info);
 
@@ -130,11 +132,9 @@ export default function PlayerProfileScreen() {
 
   /* ---------- 渲染单条帖子 ---------- */
   const renderPost = ({ item }: { item: PostItem }) => {
-    const cover = item.coverUrl
-      ? (item.coverUrl.startsWith('http') ? item.coverUrl : BASE_URL + item.coverUrl)
-      : item.images?.[0]?.url
-        ? (item.images[0].url.startsWith('http') ? item.images[0].url : BASE_URL + item.images[0].url)
-        : 'https://via.placeholder.com/400x600.png?text=No+Image';
+    const coverUrl = patchUrl(item.coverUrl ?? item.images?.[0]?.url) ||
+      'https://via.placeholder.com/400x600.png?text=No+Image';
+    const cover = avatarVersion != null ? `${coverUrl}${coverUrl.includes('?') ? '&' : '?'}v=${avatarVersion}` : coverUrl;
 
     return (
       <TouchableOpacity
@@ -156,6 +156,12 @@ export default function PlayerProfileScreen() {
   };
 
   /* ---------- 主界面 ---------- */
+  // 头像 URL
+  const avatarUri =
+    patchProfileUrl(userData.profilePictureUrl, avatarVersion) ||
+    'https://via.placeholder.com/200x200.png?text=No+Avatar';
+    console.log(avatarVersion);
+
   return (
     <SafeAreaView style={styles.container}>
       {/* 顶部栏 */}
@@ -171,11 +177,8 @@ export default function PlayerProfileScreen() {
       {/* 头像 & 基本信息 */}
       <View style={styles.identitySection}>
         <FastImage
-          source={{
-            uri: userData.profilePictureUrl
-              ? `${BASE_URL}${userData.profilePictureUrl}?v=${avatarVersion}`
-              : 'https://via.placeholder.com/200x200.png?text=No+Avatar'
-          }}
+          key={`avatar-${avatarVersion}`}
+          source={{ uri: avatarUri }}
           style={styles.avatar}
           resizeMode="cover"
         />
@@ -201,11 +204,13 @@ export default function PlayerProfileScreen() {
       {Array.isArray(userData.albumUrls) && userData.albumUrls.length > 0 && (
         <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.albumScroll}>
           {userData.albumUrls.map((u: string, i: number) => {
-            const src = u.startsWith('http') ? u : BASE_URL + u;
+            const mediaUrl = patchUrl(u) || '';
+            const uri =
+              avatarVersion != null ? `${mediaUrl}${mediaUrl.includes('?') ? '&' : '?'}v=${avatarVersion}` : mediaUrl;
             return (
               <FastImage
                 key={i}
-                source={{ uri: `${src}?v=${avatarVersion}` }}
+                source={{ uri }}
                 style={styles.albumImage}
                 resizeMode="cover"
               />

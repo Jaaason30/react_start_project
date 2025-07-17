@@ -24,7 +24,7 @@ export interface JwtResponse {
   accessToken: string;
   refreshToken: string;
   tokenType: string;
-  userUuid: string;
+  userShortId: number;
   email: string;
   nickname: string;
 }

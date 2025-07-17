@@ -1,12 +1,12 @@
 // src/screens/Step1Screen.tsx
-
-import React from 'react';
+import React, { useCallback } from 'react';
 import {
+  SafeAreaView,
+  ScrollView,
   View,
   Text,
+  Pressable,
   TouchableOpacity,
-  ScrollView,
-  SafeAreaView,
 } from 'react-native';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import { useNavigation } from '@react-navigation/native';
@@ -42,7 +42,6 @@ export default function Step1Screen() {
   const navigation = useNavigation<any>();
   const { profileData, setProfileData } = useUserProfile();
 
-  // 与 PartialUserDto 对齐的字段
   const selectedGender = profileData?.gender?.text;
   const selectedGenderPrefs = profileData?.genderPreferences?.map(g => g.text) ?? [];
   const selectedInterests = profileData?.interests ?? [];
@@ -53,27 +52,21 @@ export default function Step1Screen() {
     selectedGenderPrefs.length > 0 &&
     selectedInterests.length > 0;
 
-  const handleGenderSelect = (label: string) => {
-    setProfileData(prev => ({
-      ...prev!,
-      gender: { text: label },
-    }));
-  };
+  const handleGenderSelect = useCallback((label: string) => {
+    setProfileData(prev => ({ ...prev!, gender: { text: label } }));
+  }, [setProfileData]);
 
-  const togglePreference = (label: string) => {
+  const togglePreference = useCallback((label: string) => {
     setProfileData(prev => {
       const current = prev?.genderPreferences?.map(g => g.text) ?? [];
       const updated = current.includes(label)
         ? current.filter(t => t !== label)
         : [...current, label];
-      return {
-        ...prev!,
-        genderPreferences: updated.map(t => ({ text: t })),
-      };
+      return { ...prev!, genderPreferences: updated.map(t => ({ text: t })) };
     });
-  };
+  }, [setProfileData]);
 
-  const toggleInterest = (label: string) => {
+  const toggleInterest = useCallback((label: string) => {
     setProfileData(prev => {
       const current = prev?.interests ?? [];
       const updated = current.includes(label)
@@ -81,9 +74,9 @@ export default function Step1Screen() {
         : [...current, label];
       return { ...prev!, interests: updated };
     });
-  };
+  }, [setProfileData]);
 
-  const toggleVenue = (name: string) => {
+  const toggleVenue = useCallback((name: string) => {
     setProfileData(prev => {
       const current = prev?.preferredVenues ?? [];
       const updated = current.includes(name)
@@ -91,13 +84,14 @@ export default function Step1Screen() {
         : [...current, name];
       return { ...prev!, preferredVenues: updated };
     });
-  };
+  }, [setProfileData]);
 
   return (
     <SafeAreaView style={styles.container}>
       <TouchableOpacity
         style={styles.skipWrapper}
         onPress={() => navigation.navigate('Discover')}
+        hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
       >
         <Text style={styles.skipText}>跳过</Text>
       </TouchableOpacity>
@@ -105,87 +99,99 @@ export default function Step1Screen() {
       <TouchableOpacity
         style={styles.backWrapper}
         onPress={() => navigation.replace('Login')}
+        hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
       >
         <Ionicons name="chevron-back" size={26} color="#fff" />
       </TouchableOpacity>
 
-      <ScrollView contentContainerStyle={styles.inner}>
-        {/* 性别 */}
+      <ScrollView contentContainerStyle={styles.inner} keyboardShouldPersistTaps="handled">
         <Text style={styles.title}>你的性别</Text>
         <View style={styles.row}>
           {GENDER_OPTIONS.map(opt => (
-            <TouchableOpacity
+            <Pressable
               key={opt.label}
-              style={[
+              style={({ pressed }) => [
                 styles.choiceBox,
                 selectedGender === opt.label && styles.choiceBoxSelected,
+                pressed && { opacity: 0.6 },
               ]}
               onPress={() => handleGenderSelect(opt.label)}
+              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
             >
               <Text style={styles.choiceText}>{opt.label}</Text>
-            </TouchableOpacity>
+            </Pressable>
           ))}
         </View>
 
-        {/* 想认识的人 */}
         <Text style={styles.title}>想认识的人</Text>
         <View style={styles.row}>
           {GENDER_OPTIONS.map(opt => (
-            <TouchableOpacity
+            <Pressable
               key={opt.label}
-              style={[
+              style={({ pressed }) => [
                 styles.choiceBox,
                 selectedGenderPrefs.includes(opt.label) && styles.choiceBoxSelected,
+                pressed && { opacity: 0.6 },
               ]}
               onPress={() => togglePreference(opt.label)}
+              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
             >
               <Text style={styles.choiceText}>{opt.label}</Text>
-            </TouchableOpacity>
+            </Pressable>
           ))}
         </View>
 
-        {/* 兴趣偏好 */}
         <Text style={styles.title}>你的兴趣偏好</Text>
         <View style={styles.wrap}>
           {INTEREST_TAGS.map(tag => (
-            <TouchableOpacity
+            <Pressable
               key={tag.label}
-              style={[styles.tag, selectedInterests.includes(tag.label) && styles.tagSelected]}
+              style={({ pressed }) => [
+                styles.tag,
+                selectedInterests.includes(tag.label) && styles.tagSelected,
+                pressed && { opacity: 0.6 },
+              ]}
               onPress={() => toggleInterest(tag.label)}
+              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
             >
               <Text style={styles.tagText}>{tag.label}</Text>
-            </TouchableOpacity>
+            </Pressable>
           ))}
         </View>
 
-        {/* 偏好场所 */}
         <Text style={styles.title}>偏好场所</Text>
         <View style={styles.wrap}>
           {VENUE_TAGS.map(({ name, emoji }) => (
-            <TouchableOpacity
+            <Pressable
               key={name}
-              style={[
+              style={({ pressed }) => [
                 styles.venueCard,
                 selectedVenues.includes(name) && styles.venueCardSelected,
+                pressed && { opacity: 0.6 },
               ]}
               onPress={() => toggleVenue(name)}
+              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
             >
               <Text style={styles.venueEmoji}>{emoji}</Text>
               <Text style={styles.venueText}>{name}</Text>
-            </TouchableOpacity>
+            </Pressable>
           ))}
         </View>
       </ScrollView>
 
-      {/* 下一步 */}
-      <TouchableOpacity
-        style={[styles.nextButton, !canProceed && styles.disabledButton]}
-        disabled={!canProceed}
+      <Pressable
+        style={({ pressed }) => [
+          styles.nextButton,
+          !canProceed && styles.disabledButton,
+          pressed && canProceed && { opacity: 0.6 },
+        ]}
         onPress={() => navigation.navigate('Step2Screen')}
+        disabled={!canProceed}
+        hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
       >
         <Text style={styles.nextText}>下一步</Text>
         <Ionicons name="chevron-forward" size={20} color="#fff" />
-      </TouchableOpacity>
+      </Pressable>
     </SafeAreaView>
   );
 }

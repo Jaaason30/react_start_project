@@ -4,7 +4,6 @@ package com.zusa.backend.service.impl;
 import com.zusa.backend.dto.user.GenderDto;
 import com.zusa.backend.dto.user.UserDto;
 import com.zusa.backend.dto.user.UserSummaryDto;
-import com.zusa.backend.entity.user.Follow;
 import com.zusa.backend.entity.user.UserPhoto;
 import com.zusa.backend.entity.user.UserProfilePicture;
 import com.zusa.backend.entity.User;
@@ -30,7 +29,6 @@ import java.util.stream.IntStream;
 public class UserServiceImpl implements UserService {
 
     private final UserRepository userRepo;
-    private final FollowRepository followRepository;
     private final PasswordEncoder passwordEncoder;
 
     private final GenderRepository genderRepo;
@@ -50,13 +48,26 @@ public class UserServiceImpl implements UserService {
         userRepo.findByEmail(email).ifPresent(u -> {
             throw new IllegalArgumentException("邮箱已被注册");
         });
+
+        long shortId = generateUniqueShortId();
+
         User u = User.builder()
                 .email(email)
                 .password(passwordEncoder.encode(rawPassword))
                 .nickname(nickname)
+                .shortId(shortId)
                 .build();
+
         userRepo.save(u);
         return userMapper.toDto(u);
+    }
+
+    private long generateUniqueShortId() {
+        long shortId;
+        do {
+            shortId = 100000 + new Random().nextInt(900000); // 生成 100000 - 999999 之间的数字
+        } while (userRepo.existsByShortId(shortId));
+        return shortId;
     }
 
     @Override
@@ -110,13 +121,18 @@ public class UserServiceImpl implements UserService {
         if (userUuid.equals(targetUuid)) {
             throw new IllegalArgumentException("不能关注自己");
         }
+
         User follower = userRepo.findByUuid(userUuid)
                 .orElseThrow(() -> new UsernameNotFoundException("找不到当前用户"));
-        User target   = userRepo.findByUuid(targetUuid)
+        User target = userRepo.findByUuid(targetUuid)
                 .orElseThrow(() -> new UsernameNotFoundException("找不到目标用户"));
-        if (!followRepository.existsByFollowerAndTarget(follower, target)) {
-            followRepository.save(new Follow(follower, target));
-            log.info("[Follow] {} 关注了 {}", follower.getNickname(), target.getNickname());
+
+        if (!follower.getFollowing().contains(target)) {
+            follower.getFollowing().add(target);
+            userRepo.save(follower); // 让 JPA 自动插入关系记录
+            log.info("[Follow] {} (UUID={}) 关注了 {} (UUID={})",
+                    follower.getNickname(), follower.getUuid(),
+                    target.getNickname(), target.getUuid());
         }
     }
 
@@ -125,10 +141,16 @@ public class UserServiceImpl implements UserService {
     public void unfollow(UUID userUuid, UUID targetUuid) {
         User follower = userRepo.findByUuid(userUuid)
                 .orElseThrow(() -> new UsernameNotFoundException("找不到当前用户"));
-        User target   = userRepo.findByUuid(targetUuid)
+        User target = userRepo.findByUuid(targetUuid)
                 .orElseThrow(() -> new UsernameNotFoundException("找不到目标用户"));
-        followRepository.deleteByFollowerAndTarget(follower, target);
-        log.info("[Unfollow] {} 取消关注 {}", follower.getNickname(), target.getNickname());
+
+        if (follower.getFollowing().contains(target)) {
+            follower.getFollowing().remove(target);
+            userRepo.save(follower); // 自动更新中间表
+            log.info("[Unfollow] {} (UUID={}) 取消关注 {} (UUID={})",
+                    follower.getNickname(), follower.getUuid(),
+                    target.getNickname(), target.getUuid());
+        }
     }
 
     // 关注 / 取关 (shortId)
@@ -138,6 +160,9 @@ public class UserServiceImpl implements UserService {
     public void followByShortId(UUID userUuid, Long targetShortId) {
         User target = userRepo.findByShortId(targetShortId)
                 .orElseThrow(() -> new UsernameNotFoundException("找不到目标用户"));
+
+        log.info("[follow] 当前用户 UUID = {}, 目标用户 shortId = {}, UUID = {}", userUuid, targetShortId, target.getUuid());
+
         follow(userUuid, target.getUuid());
     }
 

@@ -6,6 +6,7 @@ import { styles } from '../../../theme/PostDetailScreen.styles';
 import { CommentType } from '../types';
 import { ReplyItem } from './ReplyItem';
 import { useUserProfile } from '../../../contexts/UserProfileContext';
+import { patchProfileUrl } from '../utils/urlHelpers';
 
 export interface CommentItemProps {
   comment: CommentType;
@@ -36,7 +37,7 @@ export const CommentItem: React.FC<CommentItemProps> = ({
   onDeleteReply,
   onReplyToReply,
 }) => {
-  const { profileData } = useUserProfile();
+  const { profileData, avatarVersion } = useUserProfile();
   const ctxShortId = profileData?.shortId;
   const meShortId = currentUserShortId ?? ctxShortId;
 
@@ -44,23 +45,26 @@ export const CommentItem: React.FC<CommentItemProps> = ({
   const author = comment.author || {
     shortId: 0,
     nickname: '',
-    profilePictureUrl: undefined,
+    profilePictureUrl: undefined as string | null | undefined,
   };
 
   const replyTo = comment.replyToUser || {
     shortId: 0,
     nickname: '',
-    profilePictureUrl: undefined,
+    profilePictureUrl: undefined as string | null | undefined,
   };
+
+  // ---- 头像（带版本号，击穿缓存）----
+  const authorAvatarUri =
+    patchProfileUrl(author.profilePictureUrl, avatarVersion) ||
+    'https://via.placeholder.com/100x100.png?text=No+Avatar';
 
   return (
     <View style={styles.commentItem}>
       <FastImage
+        key={`${author.shortId}-${avatarVersion}`} // 版本变化强制重建
         source={{
-          uri:
-            author.profilePictureUrl ||
-            'https://via.placeholder.com/100x100.png?text=No+Avatar',
-          headers: { 'Cache-Control': 'no-cache' },
+          uri: authorAvatarUri,
           priority: FastImage.priority.normal,
         }}
         style={styles.commentAvatar}
@@ -122,7 +126,7 @@ export const CommentItem: React.FC<CommentItemProps> = ({
         )}
 
         {showReplies &&
-          comment.replies?.map(reply => (
+          comment.replies?.map((reply) => (
             <ReplyItem
               key={reply.id}
               reply={reply}

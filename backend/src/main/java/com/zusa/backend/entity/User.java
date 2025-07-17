@@ -109,16 +109,18 @@ public class User {
     private List<Venue> preferredVenues = new ArrayList<>();
 
     /** 粉丝 / 关注 */
+// 当前用户“关注了”哪些人（关注别人）
     @ManyToMany
     @JoinTable(
             name = "user_follow",
-            joinColumns = @JoinColumn(name = "followee_id"),
-            inverseJoinColumns = @JoinColumn(name = "follower_id")
+            joinColumns = @JoinColumn(name = "follower_id"),       // 当前用户
+            inverseJoinColumns = @JoinColumn(name = "followee_id") // 目标用户
     )
-    private Set<User> followers = new HashSet<>();
-
-    @ManyToMany(mappedBy = "followers")
     private Set<User> following = new HashSet<>();
+
+    // 当前用户的“粉丝”有哪些人（被别人关注）
+    @ManyToMany(mappedBy = "following")
+    private Set<User> followers = new HashSet<>();
 
     /** 累计收到的“赞”数 */
     @Column(nullable = false)

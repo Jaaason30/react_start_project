@@ -29,6 +29,12 @@ export const styles = StyleSheet.create({
     paddingVertical: 10,
     color: '#fff',
   },
+    loadingContainer: {
+    flex: 1,
+    backgroundColor: '#1a1a1a',   // 与 container 同背景
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
   nextButton: {
     backgroundColor: '#ff2d55',
     paddingVertical: 14,

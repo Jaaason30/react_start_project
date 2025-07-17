@@ -11,7 +11,7 @@ export const useAuth = () => {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [isInitialized, setIsInitialized] = useState(false);
 
-  // On app start: load tokens, set auth flag, fetch profile if logged in
+  // On app start: load tokens, set auth flag, fetch profile if logged in (optimistic)
   const initializeAuth = useCallback(async () => {
     try {
       await tokenManager.init();
@@ -19,7 +19,8 @@ export const useAuth = () => {
       setIsAuthenticated(auth);
 
       if (auth) {
-        await refreshProfile();
+        // 异步刷新 Profile，不阻塞启动
+        refreshProfile();
       }
     } catch (err) {
       console.error('Auth initialization failed:', err);
@@ -32,7 +33,7 @@ export const useAuth = () => {
     initializeAuth();
   }, [initializeAuth]);
 
-  // Return { success, error? } so screens can show alerts
+  // Login: optimistic update
   const login = useCallback(
     async (credentials: LoginRequest) => {
       setIsLoading(true);
@@ -47,12 +48,16 @@ export const useAuth = () => {
           loginData.refreshToken
         );
 
+        // 乐观更新：先写入 shortId 和基本信息
         setProfileData({
-          uuid: loginData.userUuid,
-          email: loginData.email,
+          shortId: loginData.userShortId,
+          email:   loginData.email,
           nickname: loginData.nickname,
         });
         setIsAuthenticated(true);
+
+        // 异步拉取完整 Profile（头像、偏好等）
+        refreshProfile();
 
         return { success: true as const };
       } catch (err) {
@@ -62,9 +67,10 @@ export const useAuth = () => {
         setIsLoading(false);
       }
     },
-    [setProfileData]
+    [setProfileData, refreshProfile]
   );
 
+  // Register: optimistic update
   const register = useCallback(
     async (req: RegisterRequest) => {
       setIsLoading(true);
@@ -80,11 +86,14 @@ export const useAuth = () => {
         );
 
         setProfileData({
-          uuid: regData.userUuid,
-          email: regData.email,
+          shortId: regData.userShortId,
+          email:   regData.email,
           nickname: regData.nickname,
         });
         setIsAuthenticated(true);
+
+        // 异步拉取完整 Profile
+        refreshProfile();
 
         return { success: true as const };
       } catch (err) {
@@ -94,9 +103,10 @@ export const useAuth = () => {
         setIsLoading(false);
       }
     },
-    [setProfileData]
+    [setProfileData, refreshProfile]
   );
 
+  // Logout
   const logout = useCallback(async () => {
     setIsLoading(true);
     try {

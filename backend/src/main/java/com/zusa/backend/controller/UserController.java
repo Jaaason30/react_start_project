@@ -165,6 +165,7 @@ public class UserController {
             @RequestBody UserDto req,
             @AuthenticationPrincipal UserDetails principal
     ) {
+        log.info("yaaa");
         UUID currentUuid = UUID.fromString(principal.getUsername());
         log.info("[Controller] PATCH /profile/short/{} — current UUID = {}", shortId, currentUuid);
         userService.updateProfileByShortId(req, shortId);

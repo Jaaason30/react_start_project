@@ -1,4 +1,5 @@
 // src/screens/Post/components/ReplyItem.tsx
+// Modified to use patchProfileUrl for cache-busting avatar URLs
 
 import React from 'react';
 import { View, Text, TouchableOpacity } from 'react-native';
@@ -7,6 +8,7 @@ import FastImage from 'react-native-fast-image';
 import { styles } from '../../../theme/PostDetailScreen.styles';
 import { CommentType } from '../types';
 import { useUserProfile } from '../../../contexts/UserProfileContext';
+import { patchProfileUrl } from '../utils/urlHelpers';
 
 interface ReplyItemProps {
   reply: CommentType;
@@ -23,23 +25,24 @@ export const ReplyItem: React.FC<ReplyItemProps> = ({
   onReply,
   onDelete,
 }) => {
-  const { profileData } = useUserProfile();
+  const { profileData, avatarVersion } = useUserProfile();
   const meShortId = currentUserShortId ?? profileData?.shortId;
   const isAuthor = meShortId === reply.author.shortId;
+
+  // 生成带版本号的头像 URL，null 和 undefined 均处理为 undefined
+  const avatarUri =
+    patchProfileUrl(reply.author.profilePictureUrl, avatarVersion) ||
+    'https://via.placeholder.com/100x100.png?text=No+Avatar';
 
   return (
     <View style={[styles.commentItem, styles.replyItem]}>
       <FastImage
-        source={{
-          uri:
-            reply.author.profilePictureUrl ||
-            'https://via.placeholder.com/100x100.png?text=No+Avatar',
-          headers: { 'Cache-Control': 'no-cache' },
-          priority: FastImage.priority.normal,
-        }}
+        key={`${reply.author.shortId}-${avatarVersion}`}
+        source={{ uri: avatarUri, priority: FastImage.priority.normal }}
         style={styles.commentAvatar}
         resizeMode={FastImage.resizeMode.cover}
       />
+
       <View style={{ flex: 1, marginLeft: 8 }}>
         <View style={styles.commentTopRow}>
           <Text style={styles.commentUser}>{reply.author.nickname}</Text>
@@ -56,11 +59,7 @@ export const ReplyItem: React.FC<ReplyItemProps> = ({
                 color={reply.liked ? '#f33' : '#888'}
               />
               <Text
-                style={[
-                  styles.replyLikes,
-                  reply.liked && { color: '#f33' },
-                ]}
-              >
+                style={[styles.replyLikes, reply.liked && { color: '#f33' }]}>
                 {reply.likes}
               </Text>
             </TouchableOpacity>

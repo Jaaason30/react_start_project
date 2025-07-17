@@ -17,8 +17,10 @@ import { useUserProfile } from '../../contexts/UserProfileContext';
 
 export default function Step2Screen({ navigation }: any) {
   const { profileData, setProfileData } = useUserProfile();
-  const avatar = profileData.profileBase64;
-  const album = profileData.albumBase64List ?? [];
+  
+  // 添加空值检查
+  const avatar = profileData?.profileBase64;
+  const album = profileData?.albumBase64List ?? [];
 
   const pickImage = async (isAvatar: boolean) => {
     launchImageLibrary(
@@ -29,17 +31,23 @@ export default function Step2Screen({ navigation }: any) {
         if (!asset.base64 || !asset.type) return;
 
         if (isAvatar) {
-          setProfileData(prev => ({
-            ...prev,
-            profileBase64: asset.base64,
-            profileMime: asset.type,
-          }));
+          setProfileData(prev => {
+            if (!prev) return prev;
+            return {
+              ...prev,
+              profileBase64: asset.base64!,
+              profileMime: asset.type!,
+            };
+          });
         } else if (album.length < 6) {
-          setProfileData(prev => ({
-            ...prev,
-            albumBase64List: [...(prev.albumBase64List ?? []), asset.base64],
-            albumMimeList: [...(prev.albumMimeList ?? []), asset.type],
-          }));
+          setProfileData(prev => {
+            if (!prev) return prev;
+            return {
+              ...prev,
+              albumBase64List: [...(prev.albumBase64List ?? []), asset.base64!],
+              albumMimeList: [...(prev.albumMimeList ?? []), asset.type!],
+            };
+          });
         } else {
           Alert.alert('最多上传 6 张照片');
         }
@@ -48,11 +56,14 @@ export default function Step2Screen({ navigation }: any) {
   };
 
   const removePhoto = (idx: number) =>
-    setProfileData(prev => ({
-      ...prev,
-      albumBase64List: prev.albumBase64List?.filter((_, i) => i !== idx) ?? [],
-      albumMimeList: prev.albumMimeList?.filter((_, i) => i !== idx) ?? [],
-    }));
+    setProfileData(prev => {
+      if (!prev) return prev;
+      return {
+        ...prev,
+        albumBase64List: prev.albumBase64List?.filter((_, i) => i !== idx) ?? [],
+        albumMimeList: prev.albumMimeList?.filter((_, i) => i !== idx) ?? [],
+      };
+    });
 
   const canProceed = !!avatar;
 
@@ -69,7 +80,7 @@ export default function Step2Screen({ navigation }: any) {
       <TouchableOpacity style={styles.avatarWrapper} onPress={() => pickImage(true)}>
         {avatar ? (
           <Image
-            source={{ uri: `data:${profileData.profileMime};base64,${avatar}` }}
+            source={{ uri: `data:${profileData?.profileMime};base64,${avatar}` }}
             style={styles.avatar}
           />
         ) : (
@@ -85,7 +96,7 @@ export default function Step2Screen({ navigation }: any) {
         renderItem={({ item, index }) => (
           <View style={styles.photoBox}>
             <Image
-              source={{ uri: `data:${profileData.albumMimeList?.[index]};base64,${item}` }}
+              source={{ uri: `data:${profileData?.albumMimeList?.[index]};base64,${item}` }}
               style={styles.photo}
             />
             <TouchableOpacity style={styles.removeBtn} onPress={() => removePhoto(index)}>

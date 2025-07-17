@@ -20,7 +20,7 @@ public interface UserRepository extends JpaRepository<User, Long> {
     Optional<User> findByNickname(String nickname);
 
     Optional<User> findByEmail(String email);
-
+    boolean existsByShortId(Long shortId);
     Page<User> findByNicknameContainingIgnoreCase(String keyword, Pageable pageable);
 
     // ———— 基于 UUID 的粉丝/关注查询（保持兼容） ————
