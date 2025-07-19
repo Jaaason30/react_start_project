@@ -1,5 +1,5 @@
 // 统一媒体/头像 URL 辅助函数
-// 路径按你项目实际调整；此处假设 utils 位于 src/screens/Post/utils/
+
 import { BASE_URL } from '../../../constants/api';
 
 /**
