@@ -1,14 +1,15 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   SafeAreaView, View, Text, StatusBar, ScrollView, TouchableOpacity,
   TextInput, Image, Dimensions, StyleSheet, Platform, Alert,
 } from 'react-native';
 import Ionicons from 'react-native-vector-icons/Ionicons';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useRoute } from '@react-navigation/native';
 import { launchImageLibrary } from 'react-native-image-picker';
 import { useUserProfile } from '../../contexts/UserProfileContext';
 import { apiClient } from '../../services/apiClient';
 import { API_ENDPOINTS } from '../../constants/api';
+import { patchProfileUrl } from '../Post/utils/urlHelpers';
 
 const { width } = Dimensions.get('window');
 const TH_SIZE = 80;
@@ -18,12 +19,27 @@ const mockTags = ['台球技巧', 'Snooker', '英式台球', '斯诺克教学'];
 
 const PostCreationScreen: React.FC = () => {
   const nav = useNavigation();
-  const { profileData } = useUserProfile();
+  const route = useRoute();
+  const { profileData, avatarVersion } = useUserProfile();
   const [imgs, setImgs] = useState<any[]>([]);
   const [title, setTitle] = useState('');
   const [content, setContent] = useState('');
   const [selTags, setSelTags] = useState<string[]>([]);
   const [isPosting, setIsPosting] = useState(false);
+
+  // 接收从 DiscoverScreen 传递过来的图片
+  useEffect(() => {
+    const params = route.params as any;
+    if (params?.images && Array.isArray(params.images)) {
+      // 将传入的图片 URI 转换为 launchImageLibrary 格式
+      const formattedImages = params.images.map((uri: string, index: number) => ({
+        uri,
+        fileName: `image_${index}.jpg`,
+        type: 'image/jpeg',
+      }));
+      setImgs(formattedImages);
+    }
+  }, [route.params]);
 
   const toggleTag = (t: string) =>
     setSelTags(selTags.includes(t) ? selTags.filter(x => x !== t) : [...selTags, t]);
@@ -64,9 +80,34 @@ const PostCreationScreen: React.FC = () => {
         Alert.alert('发布失败', response.error);
       } else {
         console.log('[✅ 发布成功]', response.data);
-        Alert.alert('成功', '帖子发布成功', [
-          { text: '确定', onPress: () => nav.goBack() }
-        ]);
+        
+        // 构造新帖子对象
+        const newPost = {
+          uuid: response.data.uuid || response.data.id || Date.now().toString(),
+          title: title.trim(),
+          content: content.trim(),
+          images: imgs.map(img => img.uri),
+          author: {
+            shortId: profileData?.shortId,
+            nickname: profileData?.nickname || '未知用户',
+            profilePictureUrl: patchProfileUrl(profileData?.profilePictureUrl || '', avatarVersion),
+          },
+          likeCount: 0,
+          collectCount: 0,
+          commentCount: 0,
+          likedByCurrentUser: false,
+          collectedByCurrentUser: false,
+          followedByCurrentUser: false,
+        };
+        
+        // 调用回调函数更新列表
+        const params = route.params as any;
+        if (params?.onPostSuccess) {
+          params.onPostSuccess(newPost);
+        }
+        
+        // 直接返回广场，不显示 Alert
+        nav.goBack();
       }
     } catch (error) {
       console.error('[❌ 网络错误]', error);
@@ -213,4 +254,4 @@ const styles = StyleSheet.create({
   pubBtnDisabled: { backgroundColor: '#ffb3b3' },
   pubTxt: { color: '#fff', fontSize: 16, fontWeight: '600' },
   disabled: { opacity: 0.6 }, 
-});  
+});

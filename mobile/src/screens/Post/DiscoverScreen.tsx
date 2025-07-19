@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -9,16 +9,16 @@ import {
   RefreshControl,
 } from 'react-native';
 import Ionicons from 'react-native-vector-icons/Ionicons';
-import FastImage from 'react-native-fast-image';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { styles } from '../../theme/DiscoverScreen.styles';
-import { apiClient } from '../../services/apiClient';
-import { API_ENDPOINTS } from '../../constants/api';
-import { patchUrl, patchProfileUrl } from '../Post/utils/urlHelpers';
-import { useUserProfile } from '../../contexts/UserProfileContext';
 import { PostType } from '../Post/types';
-import { DiscoverBanner } from './components/DiscoverBanner';
+import { DiscoverBanner } from './DiscoverBanner';
+import { PostCard } from './Discover/components/PostCard';
+import { PostActionSheet } from './Discover/components/PostActionSheet';
+import { usePosts } from './Discover/hooks/usePosts';
+import { TOP_TABS, BOTTOM_TABS } from './Discover/utils/constants';
+import { selectFromGallery, takePhoto } from './Discover/utils/imagePickerHelpers';
 
 /* ---------- Navigation types ---------- */
 export type RootStackParamList = {
@@ -30,179 +30,76 @@ export type RootStackParamList = {
   Discover: undefined;
   Search: undefined;
   PlayerProfile: { shortId?: number; userId?: string };
-  PostCreation: undefined;
-  PostDetail: { post: PostType };
+  PostCreation: { 
+    source: 'gallery' | 'camera' | 'text' | 'template'; 
+    images?: string[];
+    onPostSuccess?: (newPost: PostType) => void;
+  };
+  PostDetail: { 
+    post: PostType;
+    onDeleteSuccess?: (postUuid: string) => void;
+  };
+  TemplateList: undefined;
 };
 
 type DiscoverNav = NativeStackNavigationProp<RootStackParamList, 'Discover'>;
 
-/* ---------- Tabs ---------- */
-const TOP_TABS = ['关注', '推荐'] as const;
-const BOTTOM_TABS = [
-  { key: 'heart',  label: '心动', icon: 'heart-outline',      screen: 'Dashboard'     },
-  { key: 'chat',   label: '聊天', icon: 'chatbubbles-outline', screen: 'SeatOverview' },
-  { key: 'post',   label: '',     icon: '',                    screen: 'PostCreation'  },
-  { key: 'square', label: '广场', icon: 'apps-outline',        screen: 'Discover'      },
-  { key: 'me',     label: '我的', icon: 'person-outline',      screen: 'PlayerProfile' },
-] as const;
-
-/* ---------- 自动刷新最小停留时间(ms) ---------- */
-const MIN_AUTO_REFRESH_MS = 800; // 根据体验调整 600~1000
-
 export default function DiscoverScreen() {
   const navigation = useNavigation<DiscoverNav>();
-  const { avatarVersion } = useUserProfile();
-
   const [activeTopTab, setActiveTopTab] = useState<typeof TOP_TABS[number]>('推荐');
   const [activeBottom, setActiveBottom] = useState<typeof BOTTOM_TABS[number]['key']>('square');
-  const [posts, setPosts] = useState<PostType[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
-  const listRef = useRef<FlatList<PostType>>(null);
+  const [sheetVisible, setSheetVisible] = useState(false);
 
-  /* ---------- 拉取帖子并标准化 ---------- */
-  const fetchPosts = useCallback(async () => {
-    const res = await apiClient.get<{ content: any[] }>(
-      `${API_ENDPOINTS.POSTS_FEED}?page=0&size=20`
-    );
-    if (res.error) {
-      console.error('[fetchPosts] error:', res.error);
-      setPosts([]);
-      return;
-    }
+  const {
+    posts,
+    loading,
+    refreshing,
+    listRef,
+    loadInitial,
+    onRefresh,
+    triggerAutoRefresh,
+    handleNewPost,
+    handleDeletePost,
+  } = usePosts();
 
-    const rawItems = res.data?.content ?? [];
+  useEffect(() => { loadInitial(); }, [loadInitial]);
 
-    const standardized: PostType[] = rawItems.map(item => {
-      // 封面
-      let cover = item.coverUrl
-        ? patchUrl(item.coverUrl)
-        : item.coverImageUrl
-        ? patchUrl(item.coverImageUrl)
-        : '';
-
-      if (!cover && Array.isArray(item.images) && item.images.length) {
-        const first = item.images[0];
-        if (typeof first === 'string') {
-          cover = patchUrl(first);
-        } else if (first?.url) {
-          cover = patchUrl(first.url);
-        }
-      }
-
-      return {
-        uuid: item.uuid,
-        title: item.title,
-        content: item.content,
-        images: cover ? [cover] : [],
-        author: {
-          shortId: item.author?.shortId,
-          nickname: item.author?.nickname,
-          profilePictureUrl: patchProfileUrl(item.author?.profilePictureUrl, avatarVersion),
-        },
-        likeCount: item.likeCount ?? 0,
-        collectCount: item.collectCount ?? 0,
-        commentCount: item.commentCount ?? 0,
-        likedByCurrentUser: !!item.likedByCurrentUser,
-        collectedByCurrentUser: !!item.collectedByCurrentUser,
-        followedByCurrentUser: !!item.followedByCurrentUser,
-      };
+  const handleSelectFromGallery = () => {
+    setSheetVisible(false);
+    selectFromGallery((images) => {
+      navigation.navigate('PostCreation', { 
+        source: 'gallery', 
+        images,
+        onPostSuccess: handleNewPost 
+      });
     });
+  };
 
-    setPosts(standardized);
-  }, [avatarVersion]);
-
-  /* ---------- 初次加载 ---------- */
-  const loadInitial = useCallback(async () => {
-    setLoading(true);
-    await fetchPosts();
-    setLoading(false);
-  }, [fetchPosts]);
-
-  useEffect(() => {
-    loadInitial();
-  }, [loadInitial]);
-
-  /* ---------- 下拉刷新（用户手动） ---------- */
-  const onRefresh = useCallback(async () => {
-    setRefreshing(true);
-    await fetchPosts();
-    setRefreshing(false);
-  }, [fetchPosts]);
-
-  /* ---------- 底部“广场”点击自动刷新（带延迟保持菊花） ---------- */
-  const triggerAutoRefresh = useCallback(() => {
-    // 滚到顶部（要在顶部才能看到刷新菊花）
-    listRef.current?.scrollToOffset({ offset: 0, animated: true });
-
-    // 在下一帧切换 refreshing
-    requestAnimationFrame(async () => {
-      const start = Date.now();
-      setRefreshing(true);
-      await fetchPosts();
-      const elapsed = Date.now() - start;
-      const remain = Math.max(MIN_AUTO_REFRESH_MS - elapsed, 0);
-      setTimeout(() => {
-        setRefreshing(false);
-      }, remain);
+  const handleTakePhoto = () => {
+    setSheetVisible(false);
+    takePhoto((image) => {
+      navigation.navigate('PostCreation', { 
+        source: 'camera', 
+        images: [image],
+        onPostSuccess: handleNewPost 
+      });
     });
-  }, [fetchPosts]);
+  };
 
-  /* ---------- 卡片组件 ---------- */
-  const PostCard: React.FC<{ item: PostType }> = ({ item }) => {
-    const [uri, setUri] = useState(
-      item.images[0] || 'https://via.placeholder.com/400x600'
-    );
+  const handleTextPost = () => {
+    setSheetVisible(false);
+    navigation.navigate('PostCreation', { 
+      source: 'text',
+      onPostSuccess: handleNewPost 
+    });
+  };
 
-    useEffect(() => {
-      setUri(item.images[0] || 'https://via.placeholder.com/400x600');
-    }, [item.images]);
-
-    const avatarUri = item.author.profilePictureUrl || '';
-    const handleAuthorPress = () => {
-      if (item.author.shortId != null) {
-        navigation.navigate('PlayerProfile', { shortId: item.author.shortId });
-      } else {
-        navigation.navigate('PlayerProfile', { userId: String(item.author.shortId) });
-      }
-    };
-
-    return (
-      <TouchableOpacity
-        style={styles.card}
-        activeOpacity={0.8}
-        onPress={() => navigation.navigate('PostDetail', { post: item })}
-      >
-        <FastImage
-          source={{ uri }}
-          style={styles.cardImage}
-          resizeMode={FastImage.resizeMode.cover}
-          onError={() => setUri('https://via.placeholder.com/400x600')}
-        />
-        <Text style={styles.cardTitle} numberOfLines={2}>
-          {item.title || '（无标题）'}
-        </Text>
-        <View style={styles.cardFooter}>
-          <TouchableOpacity
-            style={styles.authorContainer}
-            onPress={handleAuthorPress}
-            activeOpacity={0.7}
-          >
-            <FastImage
-              key={`${item.author.shortId}-${avatarVersion}`}
-              source={{ uri: avatarUri }}
-              style={styles.authorAvatar}
-              resizeMode={FastImage.resizeMode.cover}
-            />
-            <Text style={styles.author}>{item.author.nickname}</Text>
-          </TouchableOpacity>
-          <View style={styles.likesRow}>
-            <Ionicons name="heart-outline" size={14} color="#888" />
-            <Text style={styles.likesText}>{item.likeCount}</Text>
-          </View>
-        </View>
-      </TouchableOpacity>
-    );
+  const handleTemplatePost = () => {
+    setSheetVisible(false);
+    navigation.navigate('PostCreation', { 
+      source: 'template',
+      onPostSuccess: handleNewPost 
+    });
   };
 
   return (
@@ -242,7 +139,9 @@ export default function DiscoverScreen() {
           ref={listRef}
           data={posts}
           keyExtractor={item => item.uuid}
-          renderItem={({ item }) => <PostCard item={item} />}
+          renderItem={({ item }) => (
+            <PostCard item={item} onDeleteSuccess={handleDeletePost} />
+          )}
           numColumns={2}
           showsVerticalScrollIndicator={false}
           initialNumToRender={6}
@@ -255,7 +154,7 @@ export default function DiscoverScreen() {
               onRefresh={onRefresh}
               tintColor="#d81e06"
               colors={['#d81e06']}
-              progressViewOffset={50} // 往下偏移让菊花更显眼
+              progressViewOffset={50}
             />
           }
           ListHeaderComponent={<DiscoverBanner />}
@@ -271,7 +170,7 @@ export default function DiscoverScreen() {
                 key="post"
                 style={styles.postTabRect}
                 activeOpacity={0.8}
-                onPress={() => navigation.navigate('PostCreation')}
+                onPress={() => setSheetVisible(true)}
               >
                 <Text style={styles.plus}>+</Text>
               </TouchableOpacity>
@@ -286,7 +185,7 @@ export default function DiscoverScreen() {
               onPress={() => {
                 if (tab.key === 'square') {
                   setActiveBottom(tab.key);
-                  triggerAutoRefresh();   // 自动下拉刷新（保持菊花至少 MIN_AUTO_REFRESH_MS）
+                  triggerAutoRefresh();
                 } else if (tab.key === 'me') {
                   navigation.navigate('PlayerProfile', {} as any);
                   setActiveBottom(tab.key);
@@ -304,6 +203,16 @@ export default function DiscoverScreen() {
           );
         })}
       </View>
+
+      {/* 底部弹层 */}
+      <PostActionSheet
+        visible={sheetVisible}
+        onClose={() => setSheetVisible(false)}
+        onSelectGallery={handleSelectFromGallery}
+        onTakePhoto={handleTakePhoto}
+        onTextPost={handleTextPost}
+        onTemplatePost={handleTemplatePost}
+      />
     </View>
   );
 }

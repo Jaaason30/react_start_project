@@ -14,18 +14,18 @@ import { useUserProfile } from '../../contexts/UserProfileContext';
 import { styles } from '../../theme/PostDetailScreen.styles';
 
 // Components
-import { PostHeader } from './components/PostHeader';
-import { PostContent } from './components/PostContent';
-import { CommentSection } from './components/CommentSection';
-import { CommentItem } from './components/CommentItem';
-import { ActionBar } from './components/ActionBar';
-import { CommentModal } from './components/CommentModal';
+import { PostHeader } from './PostDetail/components/PostHeader';
+import { PostContent } from './PostDetail/components/PostContent';
+import { CommentSection } from './PostDetail/components/CommentSection';
+import { CommentItem } from './PostDetail/components/CommentItem';
+import { ActionBar } from './PostDetail/components/ActionBar';
+import { CommentModal } from './PostDetail/components/CommentModal';
 
 // Hooks
-import { usePostDetail } from './hooks/usePostDetail';
-import { useComments } from './hooks/useComments';
-import { usePostActions } from './hooks/usePostActions';
-import { useCommentActions } from './hooks/useCommentActions';
+import { usePostDetail } from './PostDetail/hooks/usePostDetail';
+import { useComments } from './PostDetail/hooks/useComments';
+import { usePostActions } from './PostDetail/hooks/usePostActions';
+import { useCommentActions } from './PostDetail/hooks/useCommentActions';
 import { checkTokenStatus } from '../../services/apiClient';
 
 // Types
