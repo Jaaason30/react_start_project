@@ -10,6 +10,8 @@ import { useUserProfile } from '../../contexts/UserProfileContext';
 import { apiClient } from '../../services/apiClient';
 import { API_ENDPOINTS } from '../../constants/api';
 import { patchProfileUrl } from '../Post/utils/urlHelpers';
+import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import type { RootStackParamList } from '../../App';
 
 const { width } = Dimensions.get('window');
 const TH_SIZE = 80;
@@ -18,7 +20,8 @@ const GAP = 8;
 const mockTags = ['台球技巧', 'Snooker', '英式台球', '斯诺克教学'];
 
 const PostCreationScreen: React.FC = () => {
-  const nav = useNavigation();
+type PostCreationNav = NativeStackNavigationProp<RootStackParamList, 'PostCreation'>;
+const nav = useNavigation<PostCreationNav>();
   const route = useRoute();
   const { profileData, avatarVersion } = useUserProfile();
   const [imgs, setImgs] = useState<any[]>([]);
@@ -108,7 +111,7 @@ const PostCreationScreen: React.FC = () => {
         }
         
         // 直接返回广场，不显示 Alert
-        nav.goBack();
+        nav.navigate('Discover');
       }
     } catch (error) {
       console.error('[❌ 网络错误]', error);
