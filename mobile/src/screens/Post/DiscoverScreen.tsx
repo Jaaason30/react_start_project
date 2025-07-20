@@ -30,9 +30,13 @@ export type RootStackParamList = {
   Discover: undefined;
   Search: undefined;
   PlayerProfile: { shortId?: number; userId?: string };
-  PostCreation: { 
-    source: 'gallery' | 'camera' | 'text' | 'template'; 
+  PostCreation: {
+    source: 'gallery' | 'camera' | 'template' | 'text';
     images?: string[];
+    onPostSuccess?: (newPost: PostType) => void;
+  };
+  WriteText: {  
+    source: 'text';
     onPostSuccess?: (newPost: PostType) => void;
   };
   PostDetail: { 
@@ -62,7 +66,9 @@ export default function DiscoverScreen() {
     handleDeletePost,
   } = usePosts();
 
-  useEffect(() => { loadInitial(); }, [loadInitial]);
+  useEffect(() => {
+    loadInitial();
+  }, [loadInitial]);
 
   const handleSelectFromGallery = () => {
     setSheetVisible(false);
@@ -81,16 +87,16 @@ export default function DiscoverScreen() {
       navigation.navigate('PostCreation', { 
         source: 'camera', 
         images: [image],
-        onPostSuccess: handleNewPost 
+        onPostSuccess: handleNewPost,
       });
     });
   };
 
   const handleTextPost = () => {
     setSheetVisible(false);
-    navigation.navigate('PostCreation', { 
+    navigation.navigate('WriteText', { 
       source: 'text',
-      onPostSuccess: handleNewPost 
+      onPostSuccess: handleNewPost,
     });
   };
 
@@ -98,7 +104,7 @@ export default function DiscoverScreen() {
     setSheetVisible(false);
     navigation.navigate('PostCreation', { 
       source: 'template',
-      onPostSuccess: handleNewPost 
+      onPostSuccess: handleNewPost,
     });
   };
 
@@ -112,7 +118,7 @@ export default function DiscoverScreen() {
           <Ionicons name="menu-outline" size={24} color="#444" />
         </TouchableOpacity>
         <View style={styles.topTabs}>
-          {TOP_TABS.map(tab => (
+          {TOP_TABS.map((tab) => (
             <TouchableOpacity
               key={tab}
               onPress={() => setActiveTopTab(tab)}
@@ -138,7 +144,7 @@ export default function DiscoverScreen() {
         <FlatList
           ref={listRef}
           data={posts}
-          keyExtractor={item => item.uuid}
+          keyExtractor={(item) => item.uuid}
           renderItem={({ item }) => (
             <PostCard item={item} onDeleteSuccess={handleDeletePost} />
           )}
@@ -163,7 +169,7 @@ export default function DiscoverScreen() {
 
       {/* 底部导航栏 */}
       <View style={styles.bottomBar}>
-        {BOTTOM_TABS.map(tab => {
+        {BOTTOM_TABS.map((tab) => {
           if (tab.key === 'post') {
             return (
               <TouchableOpacity

@@ -7,7 +7,7 @@ import { UserProfileProvider } from './contexts/UserProfileContext';
 import { ActivityIndicator, View, StyleSheet } from 'react-native';
 import tokenManager from './services/tokenManager';
 import { Colors } from './theme/colors';
-
+import WriteTextScreen from './screens/Post/WriteTextScreen';
 import LoginScreen from './screens/LoginScreen';
 import RegisterScreen from './screens/RegisterScreen';
 import DashboardScreen from './screens/DashboardScreen';
@@ -26,7 +26,7 @@ import Step4Screen from './screens/Info/Step4Screen';
 import Step5Screen from './screens/Info/Step5Screen';
 import Step6Screen from './screens/Info/Step6Screen';
 import SearchScreen from './screens/Post/SearchScreen';
-
+import { PostType } from './screens/Post/types';
 export type RootStackParamList = {
   Login: undefined;
   Register: undefined;
@@ -36,7 +36,18 @@ export type RootStackParamList = {
   Discover: undefined;
   Search: undefined;
   PostDetail: { post: { uuid: string } };
-  PostCreation: undefined;
+    PostCreation: {
+    source: 'gallery' | 'camera' | 'template' | 'text';
+    images?: string[];
+    onPostSuccess?: (newPost: PostType) => void;
+  };
+
+
+  
+      WriteText: {
+    source: 'text';
+    onPostSuccess?: (newPost: PostType) => void;
+  };
   CertifiedPromotions: undefined;
   Step1Screen: undefined;
   Step2Screen: undefined;
@@ -123,6 +134,7 @@ export default function App() {
               name="PostCreation"
               component={PostCreationScreen}
             />
+            <Stack.Screen name="WriteText" component={WriteTextScreen} />
             <Stack.Screen
               name="CertifiedPromotions"
               component={CertifiedPromotionsScreen}

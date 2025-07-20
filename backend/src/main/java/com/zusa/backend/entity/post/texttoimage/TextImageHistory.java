@@ -10,8 +10,8 @@ import lombok.Data;
         name = "text_image_history",
         indexes = {
                 @Index(name = "idx_user_id", columnList = "user_id"),
-                @Index(name = "idx_text_user", columnList = "text,user_id"),
-                @Index(name = "idx_text_user_style", columnList = "text,user_id,style_type")
+                // 如果确实需要按风格和用户查询历史，可以保留下面这条：
+                @Index(name = "idx_user_style", columnList = "user_id,style_type")
         }
 )
 public class TextImageHistory {
@@ -19,10 +19,14 @@ public class TextImageHistory {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(name = "user_id", nullable = false)
+    @Column(name = "user_id", nullable = false, length = 36)
     private String userId;
 
-    @Column(nullable = false, length = 100)
+    /**
+     * 用户输入的多行文本，允许换行
+     */
+    @Lob
+    @Column(name = "text", columnDefinition = "TEXT", nullable = false)
     private String text;
 
     /**
@@ -39,11 +43,9 @@ public class TextImageHistory {
 
     @PrePersist
     protected void onCreate() {
-        // 设置创建时间
-        createdAt = LocalDateTime.now();
-        // 默认风格类型为渐变
-        if (styleType == null) {
-            styleType = 1;
+        this.createdAt = LocalDateTime.now();
+        if (this.styleType == null) {
+            this.styleType = 1;
         }
     }
 }

@@ -53,4 +53,6 @@ export const API_ENDPOINTS = {
   COMMENT_LIKES: '/api/comments/:id/likes',
   COMMENT_REPLIES: '/api/comments/:id/replies',
   COMMENT_DELETE: '/api/comments/:id',
+ TEXT_IMAGES_GENERATE:'/api/text-images/generate',
+ TEXT_IMAGES_HISTORY: '/api/text-images/history',
 } as const;

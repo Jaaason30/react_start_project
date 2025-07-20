@@ -83,7 +83,7 @@ const PostCreationScreen: React.FC = () => {
         
         // 构造新帖子对象
         const newPost = {
-          uuid: response.data.uuid || response.data.id || Date.now().toString(),
+          uuid: response.data.uuid || `temp-${Date.now()}`,
           title: title.trim(),
           content: content.trim(),
           images: imgs.map(img => img.uri),
@@ -99,7 +99,8 @@ const PostCreationScreen: React.FC = () => {
           collectedByCurrentUser: false,
           followedByCurrentUser: false,
         };
-        
+
+                
         // 调用回调函数更新列表
         const params = route.params as any;
         if (params?.onPostSuccess) {

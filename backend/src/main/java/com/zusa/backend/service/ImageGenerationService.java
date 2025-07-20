@@ -14,10 +14,8 @@ import java.awt.GradientPaint;
 import java.awt.image.BufferedImage;
 import java.io.File;
 import java.time.LocalDateTime;
+import java.util.*;
 import java.util.List;
-import java.util.UUID;
-import java.util.Random;
-import java.util.Optional;
 import java.util.stream.Collectors;
 
 @Service
@@ -51,31 +49,20 @@ public class ImageGenerationService {
      */
     public String generateImage(String text, String userId, int styleType) {
         try {
-            // 检查缓存，只取最新一条 —— 使用 Optional
-//            if (historyRepository != null) {
-//                Optional<TextImageHistory> opt = historyRepository
-//                        .findTopByTextAndUserIdAndStyleTypeOrderByCreatedAtDesc(text, userId, styleType);
-//                if (opt.isPresent()) {
-//                    TextImageHistory cached = opt.get();
-//                    log.info("Using cached image for text: {} (style={})", text, styleType);
-//                    return cached.getImageUrl();
-//                }
-//            }
-
             // 创建图片
             BufferedImage image;
             switch (styleType) {
                 case 1:
-                    image = createGradientStyle(text);
+                    image = createCardStyle(text);
                     break;
                 case 2:
-                    image = createCardStyle(text);
+                    image = createGradientStyle(text);
                     break;
                 case 3:
                     image = createCreativeStyle(text);
                     break;
                 default:
-                    image = createGradientStyle(text);
+                    image = createCardStyle(text);
             }
 
             // 确保目录存在
@@ -168,7 +155,7 @@ public class ImageGenerationService {
         return addTextToImage(img, text);
     }
 
-    /** 通用：绘制文字到画布中 */
+    /** 通用：保留用户换行并绘制文字到画布中 */
     private BufferedImage addTextToImage(BufferedImage image, String text) {
         Graphics2D g2d = image.createGraphics();
         g2d.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
@@ -179,12 +166,23 @@ public class ImageGenerationService {
         g2d.setFont(font);
         g2d.setColor(Color.BLACK);
         FontMetrics fm = g2d.getFontMetrics();
-        // 换行
-        List<String> lines = wrapText(text, fm, WIDTH - 100);
+
+        // 1. 按用户输入的换行拆分
+        String[] userLines = text.split("\\r?\\n");
+        List<String> lines = new ArrayList<>();
+        int maxWidth = WIDTH - 100;
+
+        for (String userLine : userLines) {
+            // 如果需要自动换行，可启用 wrapText，否则保留原行
+            // lines.addAll(wrapText(userLine, fm, maxWidth));
+            lines.add(userLine);
+        }
+
         int lineHeight = fm.getHeight();
-        int lineSpacing = (int)(lineHeight * 0.3);
+        int lineSpacing = (int) (lineHeight * 0.3);
         int totalH = lines.size() * lineHeight + (lines.size() - 1) * lineSpacing;
         int startY = (HEIGHT - totalH) / 2 + fm.getAscent();
+
         for (int i = 0; i < lines.size(); i++) {
             String line = lines.get(i);
             int lineW = fm.stringWidth(line);
@@ -203,6 +201,8 @@ public class ImageGenerationService {
         return 48;
     }
 
+    /** 已保留以防后续需要 */
+    @SuppressWarnings("unused")
     private List<String> wrapText(String text, FontMetrics fm, int maxWidth) {
         List<String> lines = new java.util.ArrayList<>();
         StringBuilder current = new StringBuilder();
@@ -219,7 +219,7 @@ public class ImageGenerationService {
     }
 
     public List<HistoryResponse> getUserHistory(String userId) {
-        if (historyRepository == null) return java.util.Collections.emptyList();
+        if (historyRepository == null) return Collections.emptyList();
         List<TextImageHistory> histories = historyRepository.findByUserIdOrderByCreatedAtDesc(userId);
         return histories.stream()
                 .limit(10)
