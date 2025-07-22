@@ -44,6 +44,7 @@ export type RootStackParamList = {
     onDeleteSuccess?: (postUuid: string) => void;
   };
   TemplateList: undefined;
+  EditProfile: undefined;
 };
 
 type DiscoverNav = NativeStackNavigationProp<RootStackParamList, 'Discover'>;

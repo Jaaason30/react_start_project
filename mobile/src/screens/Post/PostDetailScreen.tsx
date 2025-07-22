@@ -27,21 +27,18 @@ import { useComments } from './PostDetail/hooks/useComments';
 import { usePostActions } from './PostDetail/hooks/usePostActions';
 import { useCommentActions } from './PostDetail/hooks/useCommentActions';
 import { checkTokenStatus } from '../../services/apiClient';
-
+import type { RootStackParamList } from './DiscoverScreen';
 // Types
 import { CommentType } from './types';
 
 console.log('[PostDetailScreen] Token Status →', checkTokenStatus());
 
-type RootStackParamList = {
-  PostDetail: { post: { uuid: string } };
-};
 type PostDetailRouteProp = RouteProp<RootStackParamList, 'PostDetail'>;
 
 export default function PostDetailScreen() {
   const navigation = useNavigation();
   const route = useRoute<PostDetailRouteProp>();
-  const { post: initialPost } = route.params;
+  const { post: initialPost, onDeleteSuccess } = route.params;
   const { refreshProfile } = useUserProfile();
   console.log('[PostDetailScreen] route params →', initialPost);
   const listRef = useRef<FlatList<CommentType>>(null);
@@ -121,8 +118,11 @@ export default function PostDetailScreen() {
           const success = await deletePost();
           if (success) {
             Alert.alert('已删除', '帖子已删除');
+            if (onDeleteSuccess) {
+              onDeleteSuccess(initialPost.uuid);
+            }
             navigation.goBack();
-          }
+          } 
         },
       },
     ]);

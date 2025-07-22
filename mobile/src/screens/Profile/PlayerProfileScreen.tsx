@@ -22,16 +22,8 @@ import { styles } from '../../theme/PlayerProfileScreen.styles';
 import { apiClient } from '../../services/apiClient';
 import { API_ENDPOINTS } from '../../constants/api';
 import { patchProfileUrl, patchUrl } from '../Post/utils/urlHelpers';
-
+import type { RootStackParamList } from '../Post/DiscoverScreen';
 /* ---------- 路由类型 ---------- */
-type RootStackParamList = {
-  Dashboard: undefined;
-  SeatOverview: undefined;
-  Discover: undefined;
-  PlayerProfile: { shortId?: number; userId?: string };
-  PostDetail: { post: any };
-  EditProfile: undefined;
-};
 type NavType   = NativeStackNavigationProp<RootStackParamList>;
 type RouteType = RouteProp<RootStackParamList, 'PlayerProfile'>;
 
@@ -66,7 +58,9 @@ export default function PlayerProfileScreen() {
   const [activeTab, setActiveTab] = useState<TabKey>('square');
 
   const listRef = useRef<FlatList<PostItem>>(null);
-
+  const handleDeletePost = (uuid: string) => {
+    setPosts(prev => prev.filter(p => p.uuid !== uuid));
+  };
   /* ---------- 判断角色 ---------- */
   const targetShortId = route.params?.shortId;
   const targetUserId  = route.params?.userId;
@@ -140,7 +134,12 @@ export default function PlayerProfileScreen() {
       <TouchableOpacity
         style={styles.card}
         activeOpacity={0.8}
-        onPress={() => navigation.navigate('PostDetail', { post: { ...item, coverUri: cover } })}
+                onPress={() =>
+          navigation.navigate('PostDetail', {
+            post: { ...item, coverUri: cover } as any,
+            onDeleteSuccess: handleDeletePost,
+          })
+        }
       >
         <FastImage source={{ uri: cover }} style={styles.cardImage} resizeMode="cover" />
         <Text style={styles.cardTitle} numberOfLines={2}>{item.title ?? '（无标题）'}</Text>
