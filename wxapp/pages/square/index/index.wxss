@@ -1,0 +1,8 @@
+.list {
+  padding: 16rpx;
+}
+.loading {
+  text-align: center;
+  color: #888;
+  padding: 20rpx 0;
+}
