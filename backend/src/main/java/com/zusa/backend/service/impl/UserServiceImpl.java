@@ -71,6 +71,24 @@ public class UserServiceImpl implements UserService {
     }
 
     @Override
+    @Transactional
+    public UserDto createGuestUser() {
+        long shortId = generateUniqueShortId();
+        String nickname = "Guest" + System.currentTimeMillis();
+        String email = "guest-" + UUID.randomUUID() + "@guest.local";
+        User u = User.builder()
+                .email(email)
+                .password(passwordEncoder.encode(UUID.randomUUID().toString()))
+                .nickname(nickname)
+                .shortId(shortId)
+                .role(com.zusa.backend.entity.Role.GUEST)
+                .build();
+
+        userRepo.save(u);
+        return userMapper.toDto(u);
+    }
+
+    @Override
     @Transactional(readOnly = true)
     public UserDto login(String username, String rawPassword) {
         Optional<User> opt = username.contains("@")

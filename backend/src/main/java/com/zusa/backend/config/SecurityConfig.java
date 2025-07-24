@@ -17,6 +17,7 @@ import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
+import org.springframework.http.HttpMethod;
 
 /**
  * SecurityConfig – 最终版
@@ -59,8 +60,9 @@ public class SecurityConfig {
                 .sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .exceptionHandling(ex -> ex.authenticationEntryPoint(jwtAuthenticationEntryPoint))
                 .authorizeHttpRequests(auth -> auth
-                        // 登录 / 注册接口公开
-                        .requestMatchers("/api/auth/**").permitAll()
+                        // 登录接口公开
+                        .requestMatchers("/api/auth/login", "/api/auth/register", "/api/auth/refresh").permitAll()
+                        .requestMatchers(HttpMethod.POST, "/api/auth/guest", "/api/auth/mp/login").permitAll()
                         // 静态资源 & 头像接口全部公开
                         .requestMatchers(
                                 "/static/**",
@@ -68,6 +70,8 @@ public class SecurityConfig {
                                 "/api/media/photo/**",
                                 "/api/media/profile/**"
                         ).permitAll()
+                        // 匿名 GET 访问
+                        .requestMatchers(HttpMethod.GET, "/api/posts/**", "/api/users/**").permitAll()
                         // 其它请求需 JWT
                         .anyRequest().authenticated())
                 .authenticationProvider(authProvider)

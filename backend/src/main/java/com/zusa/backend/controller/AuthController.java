@@ -3,9 +3,12 @@ package com.zusa.backend.controller;
 import com.zusa.backend.dto.auth.JwtResponse;
 import com.zusa.backend.dto.auth.RefreshTokenRequest;
 import com.zusa.backend.dto.auth.TokenClaims;
+import com.zusa.backend.dto.auth.GuestJwtResponse;
 import com.zusa.backend.dto.user.UserDto;
+import com.zusa.backend.dto.user.UserReadDto;
 import com.zusa.backend.security.JwtUtils;
 import com.zusa.backend.service.UserService;
+import com.zusa.backend.service.mapper.UserMapper;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 import lombok.RequiredArgsConstructor;
@@ -32,6 +35,7 @@ public class AuthController {
     private final UserService userService;
     private final AuthenticationManager authenticationManager;
     private final JwtUtils jwtUtils;
+    private final UserMapper userMapper;
 
     /**
      * 注册请求参数
@@ -119,6 +123,32 @@ public class AuthController {
                 .build();
 
         return ResponseEntity.ok(response);
+    }
+
+    /**
+     * 游客登录，生成临时账号
+     */
+    @PostMapping("/guest")
+    public ResponseEntity<GuestJwtResponse> guestLogin() {
+        log.info("[👤 /guest] 游客登录请求");
+
+        UserDto dto = userService.createGuestUser();
+
+        TokenClaims claims = new TokenClaims();
+        claims.setUserUuid(dto.getUuid());
+        claims.setEmail(dto.getEmail());
+        String accessToken = jwtUtils.generateAccessToken(claims);
+        String refreshToken = jwtUtils.generateRefreshToken(dto.getUuid());
+
+        UserReadDto readDto = userMapper.toReadDto(dto);
+
+        GuestJwtResponse resp = GuestJwtResponse.builder()
+                .accessToken(accessToken)
+                .refreshToken(refreshToken)
+                .user(readDto)
+                .build();
+
+        return ResponseEntity.ok(resp);
     }
 
     /**

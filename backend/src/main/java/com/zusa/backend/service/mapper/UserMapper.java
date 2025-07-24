@@ -62,4 +62,13 @@ public interface UserMapper {
     @Mapping(target = "profilePictureUrl",
             expression = "java(user.getProfilePicture() != null ? \"/api/media/profile/\" + user.getProfilePicture().getUuid() : null)")
     UserSummaryDto toSummaryDto(User user);
+
+    /** Guest/Read mapping User → UserReadDto */
+    @Mapping(target = "avatarUrl",
+            expression = "java(user.getProfilePicture() != null ? \"/api/media/profile/\" + user.getProfilePicture().getUuid() : null)")
+    UserReadDto toReadDto(User user);
+
+    /** Mapping from UserDto to UserReadDto */
+    @Mapping(target = "avatarUrl", source = "profilePictureUrl")
+    UserReadDto toReadDto(UserDto dto);
 }
