@@ -6,8 +6,14 @@ import com.zusa.backend.dto.auth.TokenClaims;
 import com.zusa.backend.dto.auth.GuestJwtResponse;
 import com.zusa.backend.dto.user.UserDto;
 import com.zusa.backend.dto.user.UserReadDto;
+<<<<<<< Updated upstream
 import com.zusa.backend.security.JwtUtils;
 import com.zusa.backend.service.UserService;
+=======
+import com.zusa.backend.security.JwtUtils;
+import com.zusa.backend.service.UserService;
+import com.zusa.backend.service.mapper.UserMapper;
+>>>>>>> Stashed changes
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 import lombok.RequiredArgsConstructor;
@@ -34,6 +40,10 @@ public class AuthController {
     private final UserService userService;
     private final AuthenticationManager authenticationManager;
     private final JwtUtils jwtUtils;
+<<<<<<< Updated upstream
+=======
+    private final UserMapper userMapper;
+>>>>>>> Stashed changes
 
     /**
      * 注册请求参数
@@ -138,12 +148,16 @@ public class AuthController {
         String accessToken = jwtUtils.generateAccessToken(claims);
         String refreshToken = jwtUtils.generateRefreshToken(dto.getUuid());
 
+<<<<<<< Updated upstream
         UserReadDto readDto = new UserReadDto();
         readDto.setUuid(dto.getUuid());
         readDto.setShortId(dto.getShortId());
         readDto.setNickname(dto.getNickname());
         readDto.setAvatarUrl(dto.getProfilePictureUrl());
         readDto.setBio(dto.getBio());
+=======
+        UserReadDto readDto = userMapper.toReadDto(dto);
+>>>>>>> Stashed changes
 
         GuestJwtResponse resp = GuestJwtResponse.builder()
                 .accessToken(accessToken)
