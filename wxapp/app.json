@@ -1,0 +1,34 @@
+{
+  "pages": [
+    "pages/chat/index/index",
+    "pages/square/index/index",
+    "pages/game/index/index",
+    "pages/me/index/index",
+    "pages/square/postDetail/index"
+  ],
+  "window": {
+    "navigationBarTitleText": "广场",
+    "navigationBarTextStyle": "black",
+    "navigationBarBackgroundColor": "#ffffff"
+  },
+  "tabBar": {
+    "list": [
+      {
+        "pagePath": "pages/chat/index/index",
+        "text": "聊天"
+      },
+      {
+        "pagePath": "pages/square/index/index",
+        "text": "广场"
+      },
+      {
+        "pagePath": "pages/game/index/index",
+        "text": "游戏"
+      },
+      {
+        "pagePath": "pages/me/index/index",
+        "text": "我的"
+      }
+    ]
+  }
+}

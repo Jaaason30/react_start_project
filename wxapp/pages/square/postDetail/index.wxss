@@ -1,0 +1,6 @@
+.post { padding: 16rpx; background: #fff; }
+.detail-img { width: 100%; margin-bottom: 8rpx; }
+.title { font-size: 36rpx; font-weight: 600; margin-top: 8rpx; }
+.body { margin-top: 8rpx; color: #333; line-height: 1.4; }
+.comment-section { margin-top: 16rpx; }
+.loading { text-align: center; padding: 20rpx 0; color: #888; }

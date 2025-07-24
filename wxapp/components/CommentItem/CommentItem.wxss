@@ -1,0 +1,22 @@
+.comment {
+  display: flex;
+  padding: 16rpx;
+  border-bottom: 1px solid #eee;
+  background: #fff;
+}
+.avatar {
+  width: 64rpx;
+  height: 64rpx;
+  border-radius: 32rpx;
+  margin-right: 16rpx;
+}
+.info {
+  flex: 1;
+}
+.name {
+  font-weight: 600;
+  margin-bottom: 8rpx;
+}
+.content {
+  color: #333;
+}
