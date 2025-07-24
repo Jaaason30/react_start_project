@@ -96,7 +96,7 @@ public class AuthService implements UserDetailsService {
         return org.springframework.security.core.userdetails.User
                 .withUsername(u.getUuid().toString()) // username 设置为 UUID
                 .password(u.getPassword())
-                .roles("USER")
+                .roles(u.getRole().name())
                 .build();
     }
 
