@@ -14,6 +14,9 @@ public interface UserService {
     UserDto register(String email, String rawPassword, String nickname);
     UserDto login(String username, String password);
 
+    // 游客登录
+    UserDto createGuestUser();
+
     // UUID 资料查询
     UserDto getUserProfileByUuid(UUID uuid);
 

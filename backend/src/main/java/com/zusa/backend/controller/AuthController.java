@@ -3,7 +3,9 @@ package com.zusa.backend.controller;
 import com.zusa.backend.dto.auth.JwtResponse;
 import com.zusa.backend.dto.auth.RefreshTokenRequest;
 import com.zusa.backend.dto.auth.TokenClaims;
+import com.zusa.backend.dto.auth.GuestJwtResponse;
 import com.zusa.backend.dto.user.UserDto;
+import com.zusa.backend.dto.user.UserReadDto;
 import com.zusa.backend.security.JwtUtils;
 import com.zusa.backend.service.UserService;
 import jakarta.validation.constraints.Email;
@@ -119,6 +121,37 @@ public class AuthController {
                 .build();
 
         return ResponseEntity.ok(response);
+    }
+
+    /**
+     * 游客登录，生成临时账号
+     */
+    @PostMapping("/guest")
+    public ResponseEntity<GuestJwtResponse> guestLogin() {
+        log.info("[👤 /guest] 游客登录请求");
+
+        UserDto dto = userService.createGuestUser();
+
+        TokenClaims claims = new TokenClaims();
+        claims.setUserUuid(dto.getUuid());
+        claims.setEmail(dto.getEmail());
+        String accessToken = jwtUtils.generateAccessToken(claims);
+        String refreshToken = jwtUtils.generateRefreshToken(dto.getUuid());
+
+        UserReadDto readDto = new UserReadDto();
+        readDto.setUuid(dto.getUuid());
+        readDto.setShortId(dto.getShortId());
+        readDto.setNickname(dto.getNickname());
+        readDto.setAvatarUrl(dto.getProfilePictureUrl());
+        readDto.setBio(dto.getBio());
+
+        GuestJwtResponse resp = GuestJwtResponse.builder()
+                .accessToken(accessToken)
+                .refreshToken(refreshToken)
+                .user(readDto)
+                .build();
+
+        return ResponseEntity.ok(resp);
     }
 
     /**
