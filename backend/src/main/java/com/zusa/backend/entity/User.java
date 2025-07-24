@@ -2,6 +2,7 @@
 package com.zusa.backend.entity;
 
 import com.zusa.backend.entity.user.*;
+import com.zusa.backend.entity.Role;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.*;
 import lombok.*;
@@ -36,6 +37,12 @@ public class User {
     @JdbcTypeCode(SqlTypes.BINARY)
     @Column(name = "uuid", columnDefinition = "BINARY(16)", nullable = false, updatable = false, unique = true)
     private UUID uuid = UUID.randomUUID();
+
+    /** 用户角色 */
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false)
+    @Builder.Default
+    private Role role = Role.USER;
 
 
     /** 登录邮箱 */
