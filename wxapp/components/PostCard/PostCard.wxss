@@ -1,0 +1,29 @@
+.card {
+  background: #fff;
+  margin: 8rpx;
+  border-radius: 8rpx;
+  overflow: hidden;
+  box-shadow: 0 2rpx 4rpx rgba(0,0,0,0.1);
+}
+.cover {
+  width: 100%;
+  height: 300rpx;
+}
+.info {
+  padding: 16rpx;
+}
+.title {
+  font-size: 32rpx;
+  font-weight: 600;
+  margin-bottom: 8rpx;
+  color: #222;
+}
+.footer {
+  display: flex;
+  flex-direction: row;
+  justify-content: space-between;
+  color: #666;
+  font-size: 26rpx;
+}
+.author {}
+.likes{}

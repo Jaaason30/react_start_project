@@ -1,0 +1,10 @@
+<view class="card" bindtap="onTap">
+  <image class="cover" mode="aspectFill" src="{{post.coverUrl || (post.images && post.images[0])}}" />
+  <view class="info">
+    <view class="title">{{post.title}}</view>
+    <view class="footer">
+      <text class="author">{{post.author.nickname}}</text>
+      <text class="likes">❤ {{post.likeCount}}</text>
+    </view>
+  </view>
+</view>

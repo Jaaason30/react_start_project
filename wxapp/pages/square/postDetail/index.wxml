@@ -1,0 +1,22 @@
+<view>
+  <block wx:if="{{loading}}">
+    <view class="loading">加载中...</view>
+  </block>
+  <block wx:else>
+    <view class="post">
+      <block wx:for="{{post.images}}" wx:key="index">
+        <image class="detail-img" mode="widthFix" src="{{item}}" />
+      </block>
+      <view class="content">
+        <view class="title">{{post.title}}</view>
+        <view class="body">{{post.content}}</view>
+      </view>
+    </view>
+
+    <view class="comment-section">
+      <block wx:for="{{comments}}" wx:key="uuid">
+        <comment-item comment="{{item}}" />
+      </block>
+    </view>
+  </block>
+</view>

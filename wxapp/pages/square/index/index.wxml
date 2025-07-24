@@ -1,0 +1,6 @@
+<view class="list">
+  <block wx:for="{{posts}}" wx:key="uuid">
+    <post-card post="{{item}}" bindtap="onTapPost" />
+  </block>
+  <view wx:if="{{loading}}" class="loading">加载中...</view>
+</view>
