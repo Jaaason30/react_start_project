@@ -14,8 +14,9 @@ const decodeJWT = (token: string): any => {
     const parts = token.split('.');
     if (parts.length !== 3) return null;
     return JSON.parse(atob(parts[1]));
-  } catch (error) {
-    return null;
+  } catch (error) { 
+    return null; 
+    
   }
 };
 
