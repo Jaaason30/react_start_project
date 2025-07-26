@@ -67,11 +67,9 @@ public interface UserMapper {
     @Mapping(target = "avatarUrl",
             expression = "java(user.getProfilePicture() != null ? \"/api/media/profile/\" + user.getProfilePicture().getUuid() : null)")
     UserReadDto toReadDto(User user);
-<<<<<<< Updated upstream
-=======
 
     /** Mapping from UserDto to UserReadDto */
     @Mapping(target = "avatarUrl", source = "profilePictureUrl")
     UserReadDto toReadDto(UserDto dto);
->>>>>>> Stashed changes
+
 }
