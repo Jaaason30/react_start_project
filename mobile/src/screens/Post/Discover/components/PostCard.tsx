@@ -6,7 +6,7 @@ import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { styles } from '../../../../theme/DiscoverScreen.styles';
 import { PostType } from '../../types';
-import { RootStackParamList } from '../../DiscoverScreen';
+import { RootStackParamList } from '../../../../App';
 import { useUserProfile } from '../../../../contexts/UserProfileContext';
 
 type Navigation = NativeStackNavigationProp<RootStackParamList>;

@@ -56,6 +56,7 @@ const RegisterScreen: React.FC<Props> = ({ onRegisterSuccess }) => {
         password,
         nickname,
       });
+      console.log(data);
 
       if (data && !error) {
         // 保存 JWT tokens
