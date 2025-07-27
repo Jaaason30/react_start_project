@@ -22,7 +22,7 @@ import { styles } from '../../theme/PlayerProfileScreen.styles';
 import { apiClient } from '../../services/apiClient';
 import { API_ENDPOINTS } from '../../constants/api';
 import { patchProfileUrl, patchUrl } from '../Post/utils/urlHelpers';
-import type { RootStackParamList } from '../Post/DiscoverScreen';
+import type { RootStackParamList } from '../../App';
 /* ---------- 路由类型 ---------- */
 type NavType   = NativeStackNavigationProp<RootStackParamList>;
 type RouteType = RouteProp<RootStackParamList, 'PlayerProfile'>;

@@ -3,6 +3,7 @@
     "pages/chat/index/index",
     "pages/square/feed/index",
     "pages/square/index/index",
+    "pages/square/feed/index",
     "pages/game/index/index",
     "pages/me/index/index",
     "pages/square/postDetail/index"

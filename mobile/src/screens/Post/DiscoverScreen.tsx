@@ -12,48 +12,21 @@ import Ionicons from 'react-native-vector-icons/Ionicons';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { styles } from '../../theme/DiscoverScreen.styles';
-import { PostType } from '../Post/types';
 import { DiscoverBanner } from './DiscoverBanner';
 import { PostCard } from './Discover/components/PostCard';
 import { PostActionSheet } from './Discover/components/PostActionSheet';
 import { usePosts } from './Discover/hooks/usePosts';
 import { TOP_TABS, BOTTOM_TABS } from './Discover/utils/constants';
-import { selectFromGallery, takePhoto } from './Discover/utils/imagePickerHelpers';
-
+import { usePostActions } from './Discover/hooks/usePostActions';
+import type { RootStackParamList } from '../../App';
 /* ---------- Navigation types ---------- */
-export type RootStackParamList = {
-  Login: undefined;
-  Register: undefined;
-  Dashboard: undefined;
-  SeatOverview: undefined;
-  SeatPage: { seatId: string };
-  Discover: undefined;
-  Search: undefined;
-  PlayerProfile: { shortId?: number; userId?: string };
-  PostCreation: {
-    source: 'gallery' | 'camera' | 'template' | 'text';
-    images?: string[];
-    onPostSuccess?: (newPost: PostType) => void;
-  };
-  WriteText: {  
-    source: 'text';
-    onPostSuccess?: (newPost: PostType) => void;
-  };
-  PostDetail: { 
-    post: PostType;
-    onDeleteSuccess?: (postUuid: string) => void;
-  };
-  TemplateList: undefined;
-  EditProfile: undefined;
-};
-
 type DiscoverNav = NativeStackNavigationProp<RootStackParamList, 'Discover'>;
 
 export default function DiscoverScreen() {
   const navigation = useNavigation<DiscoverNav>();
   const [activeTopTab, setActiveTopTab] = useState<typeof TOP_TABS[number]>('推荐');
   const [activeBottom, setActiveBottom] = useState<typeof BOTTOM_TABS[number]['key']>('square');
-  const [sheetVisible, setSheetVisible] = useState(false);
+
 
   const {
     posts,
@@ -66,48 +39,18 @@ export default function DiscoverScreen() {
     handleNewPost,
     handleDeletePost,
   } = usePosts();
+  const {
+    sheetVisible,
+    setSheetVisible,
+    handleSelectFromGallery,
+    handleTakePhoto,
+    handleTextPost,
+    handleTemplatePost,
+  } = usePostActions(handleNewPost);
 
   useEffect(() => {
     loadInitial();
   }, [loadInitial]);
-
-  const handleSelectFromGallery = () => {
-    setSheetVisible(false);
-    selectFromGallery((images) => {
-      navigation.navigate('PostCreation', { 
-        source: 'gallery', 
-        images,
-        onPostSuccess: handleNewPost 
-      });
-    });
-  };
-
-  const handleTakePhoto = () => {
-    setSheetVisible(false);
-    takePhoto((image) => {
-      navigation.navigate('PostCreation', { 
-        source: 'camera', 
-        images: [image],
-        onPostSuccess: handleNewPost,
-      });
-    });
-  };
-
-  const handleTextPost = () => {
-    setSheetVisible(false);
-    navigation.navigate('WriteText', { 
-      source: 'text',
-      onPostSuccess: handleNewPost,
-    });
-  };
-
-  const handleTemplatePost = () => {
-    setSheetVisible(false);
-    navigation.navigate('PostCreation', { 
-      source: 'template',
-      onPostSuccess: handleNewPost,
-    });
-  };
 
   return (
     <View style={styles.container}>

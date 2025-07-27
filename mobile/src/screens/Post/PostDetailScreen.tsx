@@ -27,7 +27,7 @@ import { useComments } from './PostDetail/hooks/useComments';
 import { usePostActions } from './PostDetail/hooks/usePostActions';
 import { useCommentActions } from './PostDetail/hooks/useCommentActions';
 import { checkTokenStatus } from '../../services/apiClient';
-import type { RootStackParamList } from './DiscoverScreen';
+import type { RootStackParamList } from '../../App';
 // Types
 import { CommentType } from './types';
 

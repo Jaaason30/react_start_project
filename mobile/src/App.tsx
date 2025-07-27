@@ -35,16 +35,16 @@ export type RootStackParamList = {
   SeatPage: { id: string };
   Discover: undefined;
   Search: undefined;
-  PostDetail: { post: { uuid: string } };
-    PostCreation: {
+  PostDetail: {
+    post: { uuid: string };
+    onDeleteSuccess?: (postUuid: string) => void;
+  };
+  PostCreation: {
     source: 'gallery' | 'camera' | 'template' | 'text';
     images?: string[];
     onPostSuccess?: (newPost: PostType) => void;
   };
-
-
-  
-      WriteText: {
+  WriteText: {
     source: 'text';
     onPostSuccess?: (newPost: PostType) => void;
   };
@@ -55,9 +55,9 @@ export type RootStackParamList = {
   Step4Screen: undefined;
   Step5Screen: undefined;
   Step6Screen: undefined;
-  PlayerProfile: undefined;
+  PlayerProfile: { shortId?: number; userId?: string };
   EditProfile: undefined;
-};
+}
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
