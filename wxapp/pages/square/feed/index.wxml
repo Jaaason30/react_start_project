@@ -1,0 +1,14 @@
+<scroll-view class="container" scroll-y="true">
+  <view class="grid">
+    <block wx:for="{{posts}}" wx:key="id">
+      <view class="card">
+        <image class="card-image" mode="aspectFill" src="{{item.coverUrl}}" />
+        <text class="card-title">{{item.title}}</text>
+        <view class="card-footer">
+          <text class="author">{{item.authorName}}</text>
+          <text class="likes">❤ {{item.likeCount}}</text>
+        </view>
+      </view>
+    </block>
+  </view>
+</scroll-view>

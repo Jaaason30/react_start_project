@@ -1,6 +1,7 @@
 {
   "pages": [
     "pages/chat/index/index",
+    "pages/square/feed/index",
     "pages/square/index/index",
     "pages/game/index/index",
     "pages/me/index/index",
@@ -18,7 +19,7 @@
         "text": "聊天"
       },
       {
-        "pagePath": "pages/square/index/index",
+        "pagePath": "pages/square/feed/index",
         "text": "广场"
       },
       {
