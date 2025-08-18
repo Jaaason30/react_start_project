@@ -1,0 +1,14 @@
+{
+  "hooks": {
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "/Users/jaaason30/Desktop/react_start_project/.claude/save_hook.py"
+          }
+        ]
+      }
+    ]
+  }
+}

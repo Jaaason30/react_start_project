@@ -1,0 +1,3 @@
+#!/bin/bash
+# 快捷保存脚本
+bash /Users/jaaason30/Desktop/react_start_project/.claude/save.sh "$@"

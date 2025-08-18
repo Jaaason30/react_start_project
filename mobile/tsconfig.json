@@ -1,0 +1,8 @@
+// tsconfig.json
+{
+  "extends": "@react-native/typescript-config/tsconfig.json",
+  "compilerOptions": {
+    // bring in the DOM lib so `fetch`, `HeadersInit`, etc. are defined
+    "lib": ["esnext", "dom"]
+  }
+}
